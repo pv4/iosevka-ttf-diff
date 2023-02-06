@@ -1,0 +1,55 @@
+#
+# src/Makefile
+#
+
+VERSION = 0.1
+
+BIN = iosevka-ttf-diff
+
+CC = cc
+
+CFLAGS_OPT =
+LDFLAGS_OPT =
+
+DEP_HARFBUZZ = harfbuzz
+DEP_HARFBUZZ_VERSION = 3.2
+DEP_HARFBUZZ_CFLAGS = $(shell pkg-config --cflags $(DEP_HARFBUZZ))
+DEP_HARFBUZZ_LDFLAGS = $(shell pkg-config --libs $(DEP_HARFBUZZ))
+DEP_FREETYPE = freetype2
+DEP_FREETYPE_VERSION = 24.1
+DEP_FREETYPE_CFLAGS = $(shell pkg-config --cflags $(DEP_FREETYPE))
+DEP_FREETYPE_LDFLAGS = $(shell pkg-config --libs $(DEP_FREETYPE))
+DEP_LIBPNG = libpng
+DEP_LIBPNG_VERSION = 1.6
+DEP_LIBPNG_CFLAGS = $(shell pkg-config --cflags $(DEP_LIBPNG))
+DEP_LIBPNG_LDFLAGS = $(shell pkg-config --libs $(DEP_LIBPNG))
+
+CFLAGS_DEP = $(DEP_HARFBUZZ_CFLAGS) $(DEP_FREETYPE_CFLAGS) $(DEP_LIBPNG_CFLAGS)
+LDFLAGS_DEP = $(DEP_HARFBUZZ_LDFLAGS) $(DEP_FREETYPE_LDFLAGS) $(DEP_LIBPNG_LDFLAGS)
+
+CFLAGS = -Wall -Wno-parentheses $(CFLAGS_OPT) $(CFLAGS_DEP)
+LDFLAGS = $(LDFLAGS_OPT) $(LDFLAGS_DEP)
+
+SOURCES = \
+	alloc.c \
+	gik.c \
+	glyph.c \
+	glyph_box.c \
+	glyph_dumper.c \
+	main.c
+
+$(BIN): $(SOURCES)
+	pkg-config --print-errors --atleast-version $(DEP_HARFBUZZ_VERSION) $(DEP_HARFBUZZ)
+	pkg-config --print-errors --atleast-version $(DEP_FREETYPE_VERSION) $(DEP_FREETYPE)
+	pkg-config --print-errors --atleast-version $(DEP_LIBPNG_VERSION) $(DEP_LIBPNG)
+	$(CC) $(CFLAGS) -DVERSION="\"$(VERSION)\"" -o $@ $(SOURCES) $(LDFLAGS)
+
+all: $(BIN)
+
+clean:
+	rm -f iosevka-ttf-diff
+
+install: all
+	printf "%s\n" \
+		"Just copy $(BIN) wherever you want." \
+		"Alternatively you can run in directly from ./src/ directory."
