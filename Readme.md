@@ -201,16 +201,16 @@ Then start 4 processes in different `uxterm` instances:
 ```sh
 1$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./sans-italic/ ./iosevka{16.3.6,18.0.0}-sans-italic.ttf
 2$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./sans-regular/ ./iosevka{16.3.6,18.0.0}-sans-regular.ttf
-1$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./slab-italic/ ./iosevka{16.3.6,18.0.0}-slab-italic.ttf
-2$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./slab-regular/ ./iosevka{16.3.6,18.0.0}-slab-regular.ttf
+3$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./slab-italic/ ./iosevka{16.3.6,18.0.0}-slab-italic.ttf
+4$ ./src/iosevka-ttf-diff -logKept -renderSize=512 -accuracy=5 -outputTarget=png:./slab-regular/ ./iosevka{16.3.6,18.0.0}-slab-regular.ttf
 ```
 
 Or using default options where suported:
 ```sh
 1$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./sans-italic/ ./iosevka{16.3.6,18.0.0}-sans-italic.ttf
 2$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./sans-regular/ ./iosevka{16.3.6,18.0.0}-sans-regular.ttf
-1$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./slab-italic/ ./iosevka{16.3.6,18.0.0}-slab-italic.ttf
-2$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./slab-regular/ ./iosevka{16.3.6,18.0.0}-slab-regular.ttf
+3$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./slab-italic/ ./iosevka{16.3.6,18.0.0}-slab-italic.ttf
+4$ ./src/iosevka-ttf-diff -logKept -outputTarget=png:./slab-regular/ ./iosevka{16.3.6,18.0.0}-slab-regular.ttf
 ```
 
 ### Removing false-positives
@@ -243,8 +243,6 @@ By the end of this process only diff images are kept that either
 ### Reporting the remaining diffs upstream
 
 The remaining diffs can be reported upstream.
-
-DO NOT OVER-ATTACH/SPAM
 
 ### Checking whether the diffs were fixed with a new version
 
