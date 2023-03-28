@@ -2,14 +2,19 @@
 # src/Makefile
 #
 
-VERSION = 0.1
+VERSION = 0.1.next
 
 BIN = iosevka-ttf-diff
 
 CC = cc
 
-CFLAGS_OPT =
-LDFLAGS_OPT =
+LDFLAGS_OPT = \
+	-Wl,-O1,-s,--as-needed,--no-keep-memory
+CFLAGS_OPT = \
+	$(LDFLAGS_OPT) \
+	-mtune=native \
+	-Os -s -fomit-frame-pointer \
+	-pipe --param=ggc-min-expand=25 --param=ggc-min-heapsize=131072
 
 DEP_HARFBUZZ = harfbuzz
 DEP_HARFBUZZ_VERSION = 3.2
@@ -52,4 +57,4 @@ clean:
 install: all
 	printf "%s\n" \
 		"Just copy $(BIN) wherever you want." \
-		"Alternatively you can run in directly from ./src/ directory."
+		"Alternatively you can run it directly from ./src/ directory."
