@@ -2,7 +2,7 @@
 #include "args.h"
 #include "glyph.h"
 #include "gdumper.h"
-#include "gik.h"
+#include "font.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,23 +13,27 @@ typedef struct { unsigned current, total; } progress_t;
 
 static args_t args;
 
-static hb_blob_t *ohbblob, *nhbblob;
 static hb_face_t *ohbface, *nhbface;
 static hb_font_t *ohbfont, *nhbfont;
 
 static FT_Library ft;
 static FT_Face oftface, nftface;
 
-static hb_set_t *codepoints, *features;
-static char pngpath[4096];
+static font_t ofont, nfont;
+static hb_set_t *ocodepoints, *ovalues, *ncodepoints, *nvalues;
 
 static void init (const char *ofile, const char *nfile) {
-	ohbblob = hb_blob_create_from_file(ofile);
-	ohbface = hb_face_create(ohbblob, 0);
+	hb_blob_t *b;
+	
+	b = hb_blob_create_from_file(ofile);
+	ohbface = hb_face_create(b, 0);
+	hb_blob_destroy(b);
 	ohbfont = hb_font_create(ohbface);
 	hb_font_set_scale(ohbfont, args.render_size, args.render_size);
-	nhbblob = hb_blob_create_from_file(nfile);
-	nhbface = hb_face_create(nhbblob, 0);
+	
+	b = hb_blob_create_from_file(nfile);
+	nhbface = hb_face_create(b, 0);
+	hb_blob_destroy(b);
 	nhbfont = hb_font_create(nhbface);
 	hb_font_set_scale(nhbfont, args.render_size, args.render_size);
 	
@@ -37,22 +41,32 @@ static void init (const char *ofile, const char *nfile) {
 	FT_New_Face(ft, ofile, 0, &oftface);
 	FT_New_Face(ft, nfile, 0, &nftface);
 	
-	codepoints = hb_set_create();
-	features = hb_set_create();
-	
 	FT_Set_Pixel_Sizes(oftface, args.render_size, args.render_size);
 	FT_Set_Pixel_Sizes(nftface, args.render_size, args.render_size);
 	
+	font_init_e(&ofont, ohbface, ohbfont);
+	font_init_e(&nfont, nhbface, nhbfont);
+	
 	init_glyph();
 	init_gdumper();
+	
+	ncodepoints = hb_set_create();
+	nvalues = hb_set_create();
+	ocodepoints = hb_set_create();
+	ovalues = hb_set_create();
 }
 
 static void term () {
+	hb_set_destroy(ovalues);
+	hb_set_destroy(ocodepoints);
+	hb_set_destroy(nvalues);
+	hb_set_destroy(ncodepoints);
+	
 	term_gdumper();
 	term_glyph();
 	
-	hb_set_destroy(features);
-	hb_set_destroy(codepoints);
+	font_term(&nfont);
+	font_term(&ofont);
 	
 	FT_Done_Face(nftface);
 	FT_Done_Face(oftface);
@@ -60,35 +74,8 @@ static void term () {
 	
 	hb_font_destroy(nhbfont);
 	hb_face_destroy(nhbface);
-	hb_blob_destroy(nhbblob);
 	hb_font_destroy(ohbfont);
 	hb_face_destroy(ohbface);
-	hb_blob_destroy(ohbblob);
-}
-
-static void collect_sets (hb_face_t *hbface, hb_set_t *features, hb_set_t *codepoints) {
-	hb_tag_t fs[256];
-	unsigned fslen = sizeof fs / sizeof *fs;
-	unsigned i;
-	
-	// ensure the previous codepoints are kept
-	hb_face_collect_unicodes(hbface, codepoints);
-	
-	hb_ot_layout_table_get_feature_tags(hbface, HB_OT_TAG_GSUB, 0, &fslen, fs);
-	for (i = 0; i != fslen; i++) {
-		int ok;
-		char f[5];
-		
-		hb_tag_to_string(fs[i], f);
-		ok =
-			!strncmp(f, "cv", 2) ||
-			!strncmp(f, "VX", 2) ||
-			!strncmp(f, "NWID", 4) ||
-			!strncmp(f, "WWID", 4);
-		if (!ok) continue;
-		
-		hb_set_add(features, fs[i]);
-	}
 }
 
 static int glyph_changed (glyph_t *diff, int accuracy) {
@@ -118,136 +105,152 @@ next:
 	return 0;
 }
 
-static void compare (glyph_t *o, glyph_t *n, hb_codepoint_t cp, const char *sfeat, unsigned f, float fprogress) {
-	glyph_t diff;
-	
-	glyph_init_diff(&diff, o, n);
-	
-	if (args.out_png)
-		if (!sfeat) sprintf(pngpath, "%su%04x.diff.png", args.out_png, cp);
-		else sprintf(pngpath, "%su%04x_%s_%u.diff.png", args.out_png, cp, sfeat, f);
-	
-	if (glyph_changed(&diff, args.accuracy)) {
-		if (!sfeat)
-			printf("% 2.3f %% glyph changed: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
-		else
-			printf("% 2.3f %% glyph changed: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
-		if (args.out_diff)
-			if (args.out_png) gdumper_png_diff(&diff, o, n, pngpath);
-			else gdumper_ascii_diff(&diff, o, n);
-	}
+static void codepoint_deleted (hb_codepoint_t cp, hb_feature_t *f) {
+	if (!f)
+		printf("U+%04X: deleted\n", (unsigned)cp);
 	else
-		if (args.log_kept)
-			if (!sfeat) printf("% 2.3f %% glyph kept: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
-			else printf("% 2.3f %% glyph kept: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
+		printf("U+%04X.%c%c%c%c=%u: deleted\n", (unsigned)cp,
+			HB_UNTAG(f->tag), (unsigned)f->value);
+}
+
+static void codepoint_added (hb_codepoint_t cp, hb_feature_t *f) {
+	if (!f)
+		printf("U+%04X: added\n", (unsigned)cp);
+	else
+		printf("U+%04X.%c%c%c%c=%u: added\n", (unsigned)cp,
+			HB_UNTAG(f->tag), (unsigned)f->value);
+}
+
+static void codepoint_kept (hb_codepoint_t cp, hb_feature_t *f) {
+	static char out[4096];
+	glyph_t o, n, d;
+	int changed;
+	const char *status;
 	
-	glyph_term(&diff);
+	glyph_init_render(&o, ohbfont, oftface, cp, f);
+	glyph_init_render(&n, nhbfont, nftface, cp, f);
+	glyph_init_diff(&d, &o, &n);
+	
+	changed = glyph_changed(&d, args.accuracy);
+	
+	if (changed || args.log_kept) {
+		status = changed ? "changed" : "kept";
+		
+		if (!f)
+			printf("U+%04X: %s\n", (unsigned)cp, status);
+		else
+			printf("U+%04X.%c%c%c%c=%u: %s\n", (unsigned)cp,
+				HB_UNTAG(f->tag), (unsigned)f->value,
+				status);
+	}
+	
+	if (changed && args.out_diff) {
+		if (args.out_png) {
+			if (!f)
+				sprintf(out, "%su%04x.diff.png", args.out_png, (unsigned)cp);
+			else
+				sprintf(out, "%su%04x_%c%c%c%c_%u.diff.png", args.out_png, (unsigned)cp,
+					HB_UNTAG(f->tag), (unsigned)f->value);
+			gdumper_png_diff(&d, &o, &n, out);
+		} else gdumper_ascii_diff(&d, &o, &n);
+	}
+	
+	glyph_term(&d);
+	glyph_term(&n);
+	glyph_term(&o);
 }
 
 int main (int argc, char *argv[]) {
-	progress_t progress;
-	glyph_t oglyph, nglyph;
-	gik_t ogik, ngik, ofeatgik, nfeatgik, otmpgik, ntmpgik;
-	hb_feature_t feature;
-	hb_codepoint_t cp, feat;
-	float fprogress;
-	unsigned f;
-	int argserr, oeq, neq, last_value;
-	char sfeat[5];
+	hb_feature_t f;
+	hb_codepoint_t cp;
+	hb_tag_t t;
+	uint32_t v;
+	int ret;
 	
-	argserr = args_init(&args, argc, argv);
-	if (argserr) return argserr;
+	ret = args_init(&args, argc, argv);
+	if (ret) return ret;
+	
+	ret = 1;
 	
 	init(args.old_file, args.new_file);
 	
-	collect_sets(ohbface, features, codepoints);
-	collect_sets(nhbface, features, codepoints);
+	f.start = HB_FEATURE_GLOBAL_START;
+	f.end = HB_FEATURE_GLOBAL_END;
 	
-	printf("features (merged): %u\ncodepoints (merged): %u\n", hb_set_get_population(features), hb_set_get_population(codepoints));
+	for_hb_set_t (ofont.codepoints, cp)
+		if (!hb_set_has(nfont.codepoints, cp))
+			codepoint_deleted(cp, NULL);
+	for_hb_set_t (nfont.codepoints, cp)
+		if (!hb_set_has(ofont.codepoints, cp))
+			codepoint_added(cp, NULL);
+	for_hb_set_t (nfont.codepoints, cp)
+		if (hb_set_has(ofont.codepoints, cp))
+			codepoint_kept(cp, NULL);
 	
-	feature.start = HB_FEATURE_GLOBAL_START;
-	feature.end = HB_FEATURE_GLOBAL_END;
-	
-	progress.total = hb_set_get_population(codepoints);
-	progress.current = 0;
-	
-	cp = HB_SET_VALUE_INVALID;
-	while (hb_set_next(codepoints, &cp)) {
-		//if (cp > 0x7f) break;
-		//if (cp > 0x2b) break;
-//		if (cp < 0x019a) continue;
-//		if (cp < 0x1d78) continue;
-
-//		if (cp != 0x1d466) continue;
-//		if (cp != 0x022f) continue;
-//		if (cp != 'A') continue;
-//		if (cp != 0x00f6) continue;
-//		if (cp != 410 && cp != 189) continue;
-//		if (cp != 0x1f147) continue;
-//		if (cp != 0x2105) continue;
-//		if (cp != 0x2195) continue;
-//		if (cp != '*') continue;
-//		if (cp != 0x1f105) continue;
-//		if (cp != 0x1e62) continue;
-//		if (cp != '%') continue;
+	for_hb_set_t (ofont.features, t) {
+		if (hb_set_has(nfont.features, t)) continue;
 		
-		progress.current++;
-		fprogress = 100.0 * progress.current / progress.total;
+		f.tag = t;
+		font_collect_feature_sets_clean(&ofont, ocodepoints, ovalues, t);
+		for_hb_set_t (ovalues, v) {
+			f.value = v;
+			for_hb_set_t (ocodepoints, cp)
+				codepoint_deleted(cp, &f);
+		}
+	}
+	for_hb_set_t (nfont.features, t) {
+		if (hb_set_has(ofont.features, t)) continue;
 		
-		glyph_init_render(&oglyph, ohbfont, oftface, &ogik, cp, NULL);
-		glyph_init_render(&nglyph, nhbfont, nftface, &ngik, cp, NULL);
+		f.tag = t;
+		font_collect_feature_sets_clean(&nfont, ncodepoints, nvalues, t);
+		for_hb_set_t (nvalues, v) {
+			f.value = v;
+			for_hb_set_t (ncodepoints, cp)
+				codepoint_added(cp, &f);
+		}
+	}
+	for_hb_set_t (nfont.features, t) {
+		if (!hb_set_has(ofont.features, t)) continue;
 		
-		if (!ogik.len)
-			printf("% 2.3f %% glyph added: u%04x.default\n", fprogress, cp);
-		if (!ngik.len)
-			printf("% 2.3f %% glyph deleted: u%04x.default\n", fprogress, cp);
-		if (ogik.len && ngik.len)
-			compare(&oglyph, &nglyph, cp, NULL, 0, fprogress);
+		f.tag = t;
 		
-		glyph_term(&nglyph);
-		glyph_term(&oglyph);
+		font_collect_feature_sets_clean(&ofont, ocodepoints, ovalues, t);
+		font_collect_feature_sets_clean(&nfont, ncodepoints, nvalues, t);
 		
-		feat = HB_SET_VALUE_INVALID;
-		while (hb_set_next(features, &feat)) {
-			feature.tag = feat;
+		for_hb_set_t (ovalues, v) {
+			if (hb_set_has(nvalues, v)) continue;
 			
-			if (ogik.len) gik_copy(&ofeatgik, &ogik);
-			if (ngik.len) gik_copy(&nfeatgik, &ngik);
+			f.value = v;
+			for_hb_set_t (ocodepoints, cp)
+				codepoint_deleted(cp, &f);
+		}
+		for_hb_set_t (nvalues, v) {
+			if (hb_set_has(ovalues, v)) continue;
 			
-			last_value = 0;
+			f.value = v;
+			for_hb_set_t (ncodepoints, cp)
+				codepoint_added(cp, &f);
+		}
+		for_hb_set_t (nvalues, v) {
+			if (!hb_set_has(ovalues, v)) continue;
 			
-			for (f = 1; ; f++) {
-				feature.value = f;
-				
-				hb_tag_to_string(feat, sfeat);
-				
-				glyph_init_render(&oglyph, ohbfont, oftface, &otmpgik, cp, &feature);
-				glyph_init_render(&nglyph, nhbfont, nftface, &ntmpgik, cp, &feature);
-				
-				oeq = !ogik.len || gik_eq(&otmpgik, &ofeatgik) || gik_eq(&otmpgik, &ogik);
-				neq = !ngik.len || gik_eq(&ntmpgik, &nfeatgik) || gik_eq(&ntmpgik, &ngik);
-				
-				if (oeq && !neq)
-					printf("% 2.3f %% glyph added: u%04x.%s=%u\n", fprogress, cp, sfeat, f);
-				else if (!oeq && neq)
-					printf("% 2.3f %% glyph deleted: u%04x.%s=%u\n", fprogress, cp, sfeat, f);
-				else if (!oeq && !neq)
-					compare(&oglyph, &nglyph, cp, sfeat, f, fprogress);
-				else last_value = 1;
-				
-				glyph_term(&nglyph);
-				glyph_term(&oglyph);
-				
-				if (last_value)
-					break;
-				
-				if (!oeq) gik_copy(&ofeatgik, &otmpgik);
-				if (!neq) gik_copy(&nfeatgik, &ntmpgik);
-			}
+			f.value = v;
+			
+			for_hb_set_t (ocodepoints, cp)
+				if (!hb_set_has(ncodepoints, cp))
+					codepoint_deleted(cp, &f);
+			for_hb_set_t (ncodepoints, cp)
+				if (!hb_set_has(ocodepoints, cp))
+					codepoint_added(cp, &f);
+			for_hb_set_t (ncodepoints, cp)
+				if (hb_set_has(ocodepoints, cp))
+					codepoint_kept(cp, &f);
 		}
 	}
 	
+	ret = 0;
+	
 	term();
 	
-	return 0;
+	return ret;
 }

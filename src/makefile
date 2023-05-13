@@ -38,7 +38,8 @@ LDFLAGS = $(LDFLAGS_OPT) $(LDFLAGS_DEP)
 SOURCES = \
 	alloc.c \
 	args.c \
-	gik.c \
+	error.c \
+	font.c \
 	glyph.c \
 	gbox.c \
 	gdumper.c \
