@@ -1,4 +1,5 @@
 #include "main.h"
+#include "args.h"
 #include "glyph.h"
 #include "gdumper.h"
 #include "gik.h"
@@ -10,6 +11,8 @@
 
 typedef struct { unsigned current, total; } progress_t;
 
+static args_t args;
+
 static hb_blob_t *ohbblob, *nhbblob;
 static hb_face_t *ohbface, *nhbface;
 static hb_font_t *ohbfont, *nhbfont;
@@ -18,119 +21,17 @@ static FT_Library ft;
 static FT_Face oftface, nftface;
 
 static hb_set_t *codepoints, *features;
-
-static int render_size, accuracy, log_kept, output_diff, output_new, output_old;
-static const char *output_png;
-static const char *ofile, *nfile;
-
 static char pngpath[4096];
-
-static const char *argparam (const char *arg, const char *opt) {
-	unsigned len;
-	
-	len = strlen(opt);
-	return strncmp(opt, arg, len) ? NULL : arg+len;
-}
-
-static int args (int argc, char *argv[]) {
-	FILE *f;
-	const char *p;
-	unsigned i;
-	int err, file;
-	
-	render_size = 512;
-	log_kept = 0;
-	accuracy = 5;
-	output_diff = 1;
-	output_new = output_old = 0;
-	output_png = NULL;
-	ofile = nfile = NULL;
-	
-	file = 'o';
-	err = 0;
-	for (i = 1; i != argc && !err; i++)
-		if ('-' != argv[i][0])
-			switch (file) {
-			case 'o':
-			case 'n':
-				f = fopen(argv[i], "r");
-				if (!f)
-					{ err = 1; break; }
-				fclose(f);
-				
-				switch (file) {
-				case 'o': ofile = argv[i]; file = 'n'; break;
-				case 'n': nfile = argv[i]; file = '-'; break;
-				}
-				break;
-			default:
-				err = 1;
-				break;
-			}
-		else if (p = argparam(argv[i], "-renderSize="))
-			render_size = atoi(p);
-		else if (p = argparam(argv[i], "-outputTarget=")) {
-			if (!strncmp(p, "png:", 4)) output_png = p+4;
-			else err = 1;
-		}
-		else if (p = argparam(argv[i], "-outputSelect=")) {
-			output_diff = output_new = output_old = 0;
-			while (*p)
-				if (!strncmp(p, "diff,", 5)) { p += 5; output_diff = 1; }
-				else if (!strcmp(p, "diff")) { p += 4; output_diff = 1; }
-				else if (!strncmp(p, "new,", 4)) { p += 4; output_new = 1; }
-				else if (!strcmp(p, "new")) { p += 3; output_new = 1; }
-				else if (!strncmp(p, "old,", 4)) { p += 4; output_old = 1; }
-				else if (!strcmp(p, "old")) { p += 3; output_old = 1; }
-				else { err = 1; break; }
-		}
-		else if (p = argparam(argv[i], "-logKept"))
-			log_kept = 1;
-		else if (p = argparam(argv[i], "-accuracy="))
-			accuracy = atoi(p);
-		else err = 1;
-	if (!ofile || !nfile || accuracy < 1) err = 1;
-	
-	if (!err) return 0;
-	
-	fprintf(stderr,
-		"Usage: \n"
-		"  %s [OPTION]... /path/to/old.ttf /path/to/new.ttf\n"
-		"\n"
-		"Options:\n"
-		"  -renderSize=512\n"
-		"             Size of rendered glyphs.\n"
-		"  -outputTarget=png:/output/pngs/prefix\n"
-		"             Output each change to png file instead of stdout. File\n"
-		"             name is appended to the value provided,\n"
-		"             e.g. /output/pngs/prefixu002e.diff.png . If providing\n"
-		"             a directory end the arument with a slash,\n"
-		"             e.g. -outputTarget=png:/path/to/pngs/dir/ .\n"
-		"  -outputSelect=diff\n"
-		"             Changes to output, separated by comma. Possible values\n"
-		"             are: diff, new, old .\n"
-		"  -accuracy=5\n"
-		"             Consider glyphs different only if at least one continous\n"
-		"             area exists of the given size (5px x 5px) or larger\n"
-		"             which is ПОЛНОСТЬЮ different in both glyphs\n"
-		"  -logKept   Log glyphs that are not changed.\n"
-		"  -?, -h, -help, --help\n"
-		"             Show this message.\n"
-		"\n"
-		"Version: %s\n",
-		argv[0], VERSION);
-	return 1;
-}
 
 static void init (const char *ofile, const char *nfile) {
 	ohbblob = hb_blob_create_from_file(ofile);
 	ohbface = hb_face_create(ohbblob, 0);
 	ohbfont = hb_font_create(ohbface);
-	hb_font_set_scale(ohbfont, render_size, render_size);
+	hb_font_set_scale(ohbfont, args.render_size, args.render_size);
 	nhbblob = hb_blob_create_from_file(nfile);
 	nhbface = hb_face_create(nhbblob, 0);
 	nhbfont = hb_font_create(nhbface);
-	hb_font_set_scale(nhbfont, render_size, render_size);
+	hb_font_set_scale(nhbfont, args.render_size, args.render_size);
 	
 	FT_Init_FreeType(&ft);
 	FT_New_Face(ft, ofile, 0, &oftface);
@@ -139,8 +40,8 @@ static void init (const char *ofile, const char *nfile) {
 	codepoints = hb_set_create();
 	features = hb_set_create();
 	
-	FT_Set_Pixel_Sizes(oftface, render_size, render_size);
-	FT_Set_Pixel_Sizes(nftface, render_size, render_size);
+	FT_Set_Pixel_Sizes(oftface, args.render_size, args.render_size);
+	FT_Set_Pixel_Sizes(nftface, args.render_size, args.render_size);
 	
 	init_glyph();
 }
@@ -220,21 +121,21 @@ static void compare (glyph_t *o, glyph_t *n, hb_codepoint_t cp, const char *sfea
 	
 	glyph_init_diff(&diff, o, n);
 	
-	if (output_png)
-		if (!sfeat) sprintf(pngpath, "%su%04x.diff.png", output_png, cp);
-		else sprintf(pngpath, "%su%04x_%s_%u.diff.png", output_png, cp, sfeat, f);
+	if (args.out_png)
+		if (!sfeat) sprintf(pngpath, "%su%04x.diff.png", args.out_png, cp);
+		else sprintf(pngpath, "%su%04x_%s_%u.diff.png", args.out_png, cp, sfeat, f);
 	
-	if (glyph_changed(&diff, accuracy)) {
+	if (glyph_changed(&diff, args.accuracy)) {
 		if (!sfeat)
 			printf("% 2.3f %% glyph changed: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
 		else
 			printf("% 2.3f %% glyph changed: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
-		if (output_diff)
-			if (output_png) gdumper_png_diff(&diff, o, n, pngpath);
+		if (args.out_diff)
+			if (args.out_png) gdumper_png_diff(&diff, o, n, pngpath);
 			else gdumper_ascii_diff(&diff, o, n);
 	}
 	else
-		if (log_kept)
+		if (args.log_kept)
 			if (!sfeat) printf("% 2.3f %% glyph kept: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
 			else printf("% 2.3f %% glyph kept: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
 	
@@ -252,10 +153,10 @@ int main (int argc, char *argv[]) {
 	int argserr, oeq, neq, last_value;
 	char sfeat[5];
 	
-	argserr = args(argc, argv);
+	argserr = args_init(&args, argc, argv);
 	if (argserr) return argserr;
 	
-	init(ofile, nfile);
+	init(args.old_file, args.new_file);
 	
 	collect_sets(ohbface, features, codepoints);
 	collect_sets(nhbface, features, codepoints);
