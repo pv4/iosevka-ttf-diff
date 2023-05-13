@@ -5,12 +5,12 @@
 
 static hb_buffer_t *buf;
 
-void Glyph_init () { buf = hb_buffer_create(); }
-void Glyph_term () { hb_buffer_destroy(buf); }
+void init_glyph () { buf = hb_buffer_create(); }
+void term_glyph () { hb_buffer_destroy(buf); }
 
-void glyph_term (Glyph *g) { Alloc_freePuchar(g->bitmap); }
+void glyph_term (glyph_t *g) { alloc_free_puchar(g->bitmap); }
 
-static void _glyph_applyDiff (Glyph *g, Glyph *a, unsigned top, unsigned left, int n) {
+static void _glyph_apply_diff (glyph_t *g, glyph_t *a, unsigned top, unsigned left, int n) {
 	unsigned y, x, gpd;
 	unsigned char *gp, *ap, v;
 	
@@ -37,30 +37,30 @@ static void _glyph_applyDiff (Glyph *g, Glyph *a, unsigned top, unsigned left, i
 	}
 }
 
-void glyph_initDiff (Glyph *g, Glyph *a, Glyph *b) {
-	GlyphBox gbox;
+void glyph_init_diff (glyph_t *g, glyph_t *a, glyph_t *b) {
+	glyph_box_t gbox;
 	
-	glyphBox_first(&gbox, a);
-	glyphBox_next(&gbox, b);
+	glyph_box_first(&gbox, a);
+	glyph_box_next(&gbox, b);
 	
 	g->index = a->index;
 	g->top = g->left = 0;
 	g->height = gbox.maxtop - gbox.minbot;
 	g->width = gbox.maxwidth - gbox.minleft;
-	g->bitmap = Alloc_allocPuchar(g->height * g->width);
+	g->bitmap = alloc_alloc_puchar(g->height * g->width);
 	memset(g->bitmap, 0x00, sizeof *g->bitmap * g->height * g->width);
 	
-	_glyph_applyDiff(g, a, gbox.maxtop - a->top, a->left - gbox.minleft, 0);
-	_glyph_applyDiff(g, b, gbox.maxtop - b->top, b->left - gbox.minleft, 1);
+	_glyph_apply_diff(g, a, gbox.maxtop - a->top, a->left - gbox.minleft, 0);
+	_glyph_apply_diff(g, b, gbox.maxtop - b->top, b->left - gbox.minleft, 1);
 }
 
-static void buf_shape (hb_buffer_t *buf, hb_font_t *hbFont, hb_codepoint_t cp, hb_feature_t *feat) {
+static void buf_shape (hb_buffer_t *buf, hb_font_t *hbfont, hb_codepoint_t cp, hb_feature_t *feat) {
 	hb_buffer_reset(buf);
 	hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
 	hb_buffer_set_content_type(buf, HB_BUFFER_CONTENT_TYPE_UNICODE);
 	hb_buffer_add(buf, cp, 0);
 	
-	hb_shape(hbFont, buf, feat, !feat ? 0 : 1);
+	hb_shape(hbfont, buf, feat, !feat ? 0 : 1);
 /*
 	unsigned i, nglyphs;
 	
@@ -74,7 +74,7 @@ static void buf_shape (hb_buffer_t *buf, hb_font_t *hbFont, hb_codepoint_t cp, h
 */
 }
 
-static void _glyph_applyAdd (Glyph *g, Glyph *a, unsigned top, unsigned left) {
+static void _glyph_apply_add (glyph_t *g, glyph_t *a, unsigned top, unsigned left) {
 	unsigned y, x, gpd;
 	unsigned char *gp, *ap;
 	
@@ -92,8 +92,8 @@ static void _glyph_applyAdd (Glyph *g, Glyph *a, unsigned top, unsigned left) {
 	}
 }
 
-static void parts_render (Glyph parts[], unsigned partslen, FT_Face ftFace, hb_glyph_info_t infos[], hb_glyph_position_t positions[]) {
-	Glyph *p;
+static void parts_render (glyph_t parts[], unsigned partslen, FT_Face ftface, hb_glyph_info_t infos[], hb_glyph_position_t positions[]) {
+	glyph_t *p;
 	FT_Bitmap *bitmap;
 	unsigned char *from, *to;
 	unsigned i, y, x;
@@ -101,17 +101,17 @@ static void parts_render (Glyph parts[], unsigned partslen, FT_Face ftFace, hb_g
 	
 	xcursor = 0;
 	for (i = 0; i != partslen; i++) {
-		FT_Load_Glyph(ftFace, infos[i].codepoint, FT_LOAD_NO_HINTING|FT_LOAD_RENDER|FT_LOAD_TARGET_NORMAL);
-		bitmap = &ftFace->glyph->bitmap;
+		FT_Load_Glyph(ftface, infos[i].codepoint, FT_LOAD_NO_HINTING|FT_LOAD_RENDER|FT_LOAD_TARGET_NORMAL);
+		bitmap = &ftface->glyph->bitmap;
 		p = &parts[i];
 		
 //printf("%d,%d %d,%d %dx%d\n", positions[i].y_offset, positions[i].x_offset, ftFace->glyph->bitmap_top, ftFace->glyph->bitmap_left, bitmap->rows, bitmap->width);
 		p->index = infos[i].codepoint;
-		p->top = ftFace->glyph->bitmap_top + positions[i].y_offset;
-		p->left = xcursor + ftFace->glyph->bitmap_left + positions[i].x_offset;
+		p->top = ftface->glyph->bitmap_top + positions[i].y_offset;
+		p->left = xcursor + ftface->glyph->bitmap_left + positions[i].x_offset;
 		p->height = bitmap->rows;
 		p->width = bitmap->width;
-		p->bitmap = Alloc_allocPuchar(p->height * p->width);
+		p->bitmap = alloc_alloc_puchar(p->height * p->width);
 		
 		from = bitmap->buffer;
 		to = p->bitmap;
@@ -125,38 +125,38 @@ static void parts_render (Glyph parts[], unsigned partslen, FT_Face ftFace, hb_g
 	}
 }
 
-static void parts_combine (Glyph parts[], unsigned partslen, Glyph *g) {
-	GlyphBox gbox;
-	Glyph *p;
+static void parts_combine (glyph_t parts[], unsigned partslen, glyph_t *g) {
+	glyph_box_t gbox;
+	glyph_t *p;
 	unsigned i;
 	
-	glyphBox_first(&gbox, &parts[0]);
+	glyph_box_first(&gbox, &parts[0]);
 	
 	for (i = 1; i != partslen; i++)
-		glyphBox_next(&gbox, &parts[i]);
+		glyph_box_next(&gbox, &parts[i]);
 	
 	g->index = parts[0].index;
 	g->top = gbox.maxtop;
 	g->left = gbox.minleft;
 	g->height = gbox.maxtop - gbox.minbot;
 	g->width = gbox.maxwidth - gbox.minleft;
-	g->bitmap = Alloc_allocPuchar(g->height * g->width);
+	g->bitmap = alloc_alloc_puchar(g->height * g->width);
 	memset(g->bitmap, 0x00, sizeof *g->bitmap * g->height * g->width);
 	
 	for (i = 0; i != partslen; i++) {
 		p = &parts[i];
-		_glyph_applyAdd(g, p, gbox.maxtop - p->top, p->left - gbox.minleft);
+		_glyph_apply_add(g, p, gbox.maxtop - p->top, p->left - gbox.minleft);
 	}
 }
 
-void glyph_initRender (Glyph *g, hb_font_t *hbFont, FT_Face ftFace, Gik *gik, hb_codepoint_t cp, hb_feature_t *feat) {
-	Glyph parts[16];
+void glyph_init_render (glyph_t *g, hb_font_t *hbfont, FT_Face ftface, gik_t *gik, hb_codepoint_t cp, hb_feature_t *feat) {
+	glyph_t parts[16];
 	unsigned partslen;
 	hb_glyph_info_t *infos;
 	hb_glyph_position_t *positions;
 	unsigned i;
 	
-	buf_shape(buf, hbFont, cp, feat);
+	buf_shape(buf, hbfont, cp, feat);
 	
 	infos = hb_buffer_get_glyph_infos(buf, &partslen);
 	if (!partslen || !infos[0].codepoint) {
@@ -166,11 +166,11 @@ void glyph_initRender (Glyph *g, hb_font_t *hbFont, FT_Face ftFace, Gik *gik, hb
 	}
 	positions = hb_buffer_get_glyph_positions(buf, &partslen);
 	
-	parts_render(parts, partslen, ftFace, infos, positions);
+	parts_render(parts, partslen, ftface, infos, positions);
 	parts_combine(parts, partslen, g);
 	
 	for (i = 0; i != partslen; i++)
-		Alloc_freePuchar(parts[i].bitmap);
+		alloc_free_puchar(parts[i].bitmap);
 	
-	hb_buffer_serialize_glyphs(buf, 0, -1, gik->val, sizeof gik->val / sizeof *gik->val, &gik->len, hbFont, HB_BUFFER_SERIALIZE_FORMAT_TEXT, HB_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES);
+	hb_buffer_serialize_glyphs(buf, 0, -1, gik->val, sizeof gik->val / sizeof *gik->val, &gik->len, hbfont, HB_BUFFER_SERIALIZE_FORMAT_TEXT, HB_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES);
 }

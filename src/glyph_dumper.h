@@ -3,9 +3,9 @@
 
 #include "glyph.h"
 
-extern void GlyphDumper_ascii (Glyph *g);
-extern void GlyphDumper_asciiDiff (Glyph *g, Glyph *a, Glyph *b);
+extern void glyph_dumper_ascii (glyph_t *g);
+extern void glyph_dumper_ascii_diff (glyph_t *g, glyph_t *a, glyph_t *b);
 
-extern void GlyphDumper_pngDiff (Glyph *g, Glyph *a, Glyph *b, const char *path);
+extern void glyph_dumper_png_diff (glyph_t *g, glyph_t *a, glyph_t *b, const char *path);
 
 #endif

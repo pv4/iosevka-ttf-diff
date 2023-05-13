@@ -3,7 +3,7 @@
 
 static unsigned char pngbuf[3*8192];
 
-void GlyphDumper_ascii (Glyph *g) {
+void glyph_dumper_ascii (glyph_t *g) {
 	unsigned y, x;
 	unsigned char *p;
 	
@@ -18,7 +18,7 @@ void GlyphDumper_ascii (Glyph *g) {
 	}
 }
 
-void GlyphDumper_asciiDiff (Glyph *g, Glyph *a, Glyph *b) {
+void glyph_dumper_ascii_diff (glyph_t *g, glyph_t *a, glyph_t *b) {
 	unsigned y, x;
 	int maxtop, minleft, atop, btop, aleft, bleft;
 	unsigned char *gp, *ap, *bp, d;
@@ -77,7 +77,7 @@ static inline void pngbuf_add (unsigned char *pngbuf, unsigned *n, unsigned char
 	pngbuf[(*n)++] = b;
 }
 
-void GlyphDumper_pngDiff (Glyph *g, Glyph *a, Glyph *b, const char *path) {
+void glyph_dumper_png_diff (glyph_t *g, glyph_t *a, glyph_t *b, const char *path) {
 	png_structp png;
 	png_infop info;
 	FILE *file;

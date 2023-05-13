@@ -1,6 +1,6 @@
 #include "alloc.h"
 #include <stdlib.h>
 
-unsigned char *Alloc_allocPuchar (unsigned size)
+unsigned char *alloc_alloc_puchar (unsigned size)
 	{ return (unsigned char *)malloc(sizeof(unsigned char) * size); }
-void Alloc_freePuchar (unsigned char *p) { free(p); }
+void alloc_free_puchar (unsigned char *p) { free(p); }

@@ -8,13 +8,13 @@ typedef struct {
 	unsigned char *bitmap;
 	int height, width, top, left;
 	unsigned index;
-} Glyph;
+} glyph_t;
 
-extern void Glyph_init ();
-extern void Glyph_term ();
+extern void init_glyph ();
+extern void term_glyph ();
 
-extern void glyph_initRender (Glyph *g, hb_font_t *hbFont, FT_Face ftFace, Gik *gik, hb_codepoint_t cp, hb_feature_t *feat);
-extern void glyph_initDiff (Glyph *g, Glyph *a, Glyph *b);
-extern void glyph_term (Glyph *g);
+extern void glyph_init_render (glyph_t *g, hb_font_t *hbFont, FT_Face ftFace, gik_t *gik, hb_codepoint_t cp, hb_feature_t *feat);
+extern void glyph_init_diff (glyph_t *g, glyph_t *a, glyph_t *b);
+extern void glyph_term (glyph_t *g);
 
 #endif

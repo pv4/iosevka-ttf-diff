@@ -5,9 +5,9 @@
 typedef struct {
 	char val[64];
 	unsigned len;
-} Gik;
+} gik_t;
 
-extern void gik_copy (Gik *to, Gik *from);
-extern int gik_eq (Gik *to, Gik *from);
+extern void gik_copy (gik_t *to, gik_t *from);
+extern int gik_eq (gik_t *to, gik_t *from);
 
 #endif

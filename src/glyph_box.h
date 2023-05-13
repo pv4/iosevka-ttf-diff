@@ -5,9 +5,9 @@
 
 typedef struct {
 	int maxtop, minbot, maxwidth, minleft;
-} GlyphBox;
+} glyph_box_t;
 
-extern void glyphBox_first (GlyphBox *, Glyph *);
-extern void glyphBox_next (GlyphBox *, Glyph *);
+extern void glyph_box_first (glyph_box_t *b, glyph_t *g);
+extern void glyph_box_next (glyph_box_t *b, glyph_t *g);
 
 #endif

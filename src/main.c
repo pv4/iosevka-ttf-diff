@@ -8,19 +8,19 @@
 #include <unistd.h>
 #include <string.h>
 
-typedef struct { unsigned current, total; } Progress;
+typedef struct { unsigned current, total; } progress_t;
 
-static hb_blob_t *oHbBlob, *nHbBlob;
-static hb_face_t *oHbFace, *nHbFace;
-static hb_font_t *oHbFont, *nHbFont;
+static hb_blob_t *ohbblob, *nhbblob;
+static hb_face_t *ohbface, *nhbface;
+static hb_font_t *ohbfont, *nhbfont;
 
 static FT_Library ft;
-static FT_Face oFtFace, nFtFace;
+static FT_Face oftface, nftface;
 
 static hb_set_t *codepoints, *features;
 
-static int renderSize, accuracy, logKept, outputDiff, outputNew, outputOld;
-static const char *outputPng;
+static int render_size, accuracy, log_kept, output_diff, output_new, output_old;
+static const char *output_png;
 static const char *ofile, *nfile;
 
 static char pngpath[4096];
@@ -38,12 +38,12 @@ static int args (int argc, char *argv[]) {
 	unsigned i;
 	int err, file;
 	
-	renderSize = 512;
-	logKept = 0;
+	render_size = 512;
+	log_kept = 0;
 	accuracy = 5;
-	outputDiff = 1;
-	outputNew = outputOld = 0;
-	outputPng = NULL;
+	output_diff = 1;
+	output_new = output_old = 0;
+	output_png = NULL;
 	ofile = nfile = NULL;
 	
 	file = 'o';
@@ -68,24 +68,24 @@ static int args (int argc, char *argv[]) {
 				break;
 			}
 		else if (p = argparam(argv[i], "-renderSize="))
-			renderSize = atoi(p);
+			render_size = atoi(p);
 		else if (p = argparam(argv[i], "-outputTarget=")) {
-			if (!strncmp(p, "png:", 4)) outputPng = p+4;
+			if (!strncmp(p, "png:", 4)) output_png = p+4;
 			else err = 1;
 		}
 		else if (p = argparam(argv[i], "-outputSelect=")) {
-			outputDiff = outputNew = outputOld = 0;
+			output_diff = output_new = output_old = 0;
 			while (*p)
-				if (!strncmp(p, "diff,", 5)) { p += 5; outputDiff = 1; }
-				else if (!strcmp(p, "diff")) { p += 4; outputDiff = 1; }
-				else if (!strncmp(p, "new,", 4)) { p += 4; outputNew = 1; }
-				else if (!strcmp(p, "new")) { p += 3; outputNew = 1; }
-				else if (!strncmp(p, "old,", 4)) { p += 4; outputOld = 1; }
-				else if (!strcmp(p, "old")) { p += 3; outputOld = 1; }
+				if (!strncmp(p, "diff,", 5)) { p += 5; output_diff = 1; }
+				else if (!strcmp(p, "diff")) { p += 4; output_diff = 1; }
+				else if (!strncmp(p, "new,", 4)) { p += 4; output_new = 1; }
+				else if (!strcmp(p, "new")) { p += 3; output_new = 1; }
+				else if (!strncmp(p, "old,", 4)) { p += 4; output_old = 1; }
+				else if (!strcmp(p, "old")) { p += 3; output_old = 1; }
 				else { err = 1; break; }
 		}
 		else if (p = argparam(argv[i], "-logKept"))
-			logKept = 1;
+			log_kept = 1;
 		else if (p = argparam(argv[i], "-accuracy="))
 			accuracy = atoi(p);
 		else err = 1;
@@ -123,55 +123,55 @@ static int args (int argc, char *argv[]) {
 }
 
 static void init (const char *ofile, const char *nfile) {
-	oHbBlob = hb_blob_create_from_file(ofile);
-	oHbFace = hb_face_create(oHbBlob, 0);
-	oHbFont = hb_font_create(oHbFace);
-	hb_font_set_scale(oHbFont, renderSize, renderSize);
-	nHbBlob = hb_blob_create_from_file(nfile);
-	nHbFace = hb_face_create(nHbBlob, 0);
-	nHbFont = hb_font_create(nHbFace);
-	hb_font_set_scale(nHbFont, renderSize, renderSize);
+	ohbblob = hb_blob_create_from_file(ofile);
+	ohbface = hb_face_create(ohbblob, 0);
+	ohbfont = hb_font_create(ohbface);
+	hb_font_set_scale(ohbfont, render_size, render_size);
+	nhbblob = hb_blob_create_from_file(nfile);
+	nhbface = hb_face_create(nhbblob, 0);
+	nhbfont = hb_font_create(nhbface);
+	hb_font_set_scale(nhbfont, render_size, render_size);
 	
 	FT_Init_FreeType(&ft);
-	FT_New_Face(ft, ofile, 0, &oFtFace);
-	FT_New_Face(ft, nfile, 0, &nFtFace);
+	FT_New_Face(ft, ofile, 0, &oftface);
+	FT_New_Face(ft, nfile, 0, &nftface);
 	
 	codepoints = hb_set_create();
 	features = hb_set_create();
 	
-	FT_Set_Pixel_Sizes(oFtFace, renderSize, renderSize);
-	FT_Set_Pixel_Sizes(nFtFace, renderSize, renderSize);
+	FT_Set_Pixel_Sizes(oftface, render_size, render_size);
+	FT_Set_Pixel_Sizes(nftface, render_size, render_size);
 	
-	Glyph_init();
+	init_glyph();
 }
 
 static void term () {
-	Glyph_term();
+	term_glyph();
 	
 	hb_set_destroy(features);
 	hb_set_destroy(codepoints);
 	
-	FT_Done_Face(nFtFace);
-	FT_Done_Face(oFtFace);
+	FT_Done_Face(nftface);
+	FT_Done_Face(oftface);
 	FT_Done_FreeType(ft);
 	
-	hb_font_destroy(nHbFont);
-	hb_face_destroy(nHbFace);
-	hb_blob_destroy(nHbBlob);
-	hb_font_destroy(oHbFont);
-	hb_face_destroy(oHbFace);
-	hb_blob_destroy(oHbBlob);
+	hb_font_destroy(nhbfont);
+	hb_face_destroy(nhbface);
+	hb_blob_destroy(nhbblob);
+	hb_font_destroy(ohbfont);
+	hb_face_destroy(ohbface);
+	hb_blob_destroy(ohbblob);
 }
 
-static void collectSets (hb_face_t *hbFace, hb_set_t *features, hb_set_t *codepoints) {
+static void collect_sets (hb_face_t *hbface, hb_set_t *features, hb_set_t *codepoints) {
 	hb_tag_t fs[256];
 	unsigned fslen = sizeof fs / sizeof *fs;
 	unsigned i;
 	
 	// ensure the previous codepoints are kept
-	hb_face_collect_unicodes(hbFace, codepoints);
+	hb_face_collect_unicodes(hbface, codepoints);
 	
-	hb_ot_layout_table_get_feature_tags(hbFace, HB_OT_TAG_GSUB, 0, &fslen, fs);
+	hb_ot_layout_table_get_feature_tags(hbface, HB_OT_TAG_GSUB, 0, &fslen, fs);
 	for (i = 0; i != fslen; i++) {
 		int ok;
 		char f[5];
@@ -188,7 +188,7 @@ static void collectSets (hb_face_t *hbFace, hb_set_t *features, hb_set_t *codepo
 	}
 }
 
-static int glyphChanged (Glyph *diff, int accuracy) {
+static int glyph_changed (glyph_t *diff, int accuracy) {
 	int ymax, xmax, y, x, by, bx, yacc, xacc;
 	unsigned char *base, *p;
 	
@@ -215,26 +215,26 @@ next:
 	return 0;
 }
 
-static void compare (Glyph *o, Glyph *n, hb_codepoint_t cp, const char *sfeat, unsigned f, float fprogress) {
-	Glyph diff;
+static void compare (glyph_t *o, glyph_t *n, hb_codepoint_t cp, const char *sfeat, unsigned f, float fprogress) {
+	glyph_t diff;
 	
-	glyph_initDiff(&diff, o, n);
+	glyph_init_diff(&diff, o, n);
 	
-	if (outputPng)
-		if (!sfeat) sprintf(pngpath, "%su%04x.diff.png", outputPng, cp);
-		else sprintf(pngpath, "%su%04x_%s_%u.diff.png", outputPng, cp, sfeat, f);
+	if (output_png)
+		if (!sfeat) sprintf(pngpath, "%su%04x.diff.png", output_png, cp);
+		else sprintf(pngpath, "%su%04x_%s_%u.diff.png", output_png, cp, sfeat, f);
 	
-	if (glyphChanged(&diff, accuracy)) {
+	if (glyph_changed(&diff, accuracy)) {
 		if (!sfeat)
 			printf("% 2.3f %% glyph changed: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
 		else
 			printf("% 2.3f %% glyph changed: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
-		if (outputDiff)
-			if (outputPng) GlyphDumper_pngDiff(&diff, o, n, pngpath);
-			else GlyphDumper_asciiDiff(&diff, o, n);
+		if (output_diff)
+			if (output_png) glyph_dumper_png_diff(&diff, o, n, pngpath);
+			else glyph_dumper_ascii_diff(&diff, o, n);
 	}
 	else
-		if (logKept)
+		if (log_kept)
 			if (!sfeat) printf("% 2.3f %% glyph kept: u%04x.default, %x\n", fprogress, (unsigned)cp, diff.index);
 			else printf("% 2.3f %% glyph kept: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
 	
@@ -242,14 +242,14 @@ static void compare (Glyph *o, Glyph *n, hb_codepoint_t cp, const char *sfeat, u
 }
 
 int main (int argc, char *argv[]) {
-	Progress progress;
-	Glyph oglyph, nglyph;
-	Gik ogik, ngik, ofeatgik, nfeatgik, otmpgik, ntmpgik;
+	progress_t progress;
+	glyph_t oglyph, nglyph;
+	gik_t ogik, ngik, ofeatgik, nfeatgik, otmpgik, ntmpgik;
 	hb_feature_t feature;
 	hb_codepoint_t cp, feat;
 	float fprogress;
 	unsigned f;
-	int argserr, oeq, neq, lastValue;
+	int argserr, oeq, neq, last_value;
 	char sfeat[5];
 	
 	argserr = args(argc, argv);
@@ -257,8 +257,8 @@ int main (int argc, char *argv[]) {
 	
 	init(ofile, nfile);
 	
-	collectSets(oHbFace, features, codepoints);
-	collectSets(nHbFace, features, codepoints);
+	collect_sets(ohbface, features, codepoints);
+	collect_sets(nhbface, features, codepoints);
 	
 	printf("features (merged): %u\ncodepoints (merged): %u\n", hb_set_get_population(features), hb_set_get_population(codepoints));
 	
@@ -291,8 +291,8 @@ int main (int argc, char *argv[]) {
 		progress.current++;
 		fprogress = 100.0 * progress.current / progress.total;
 		
-		glyph_initRender(&oglyph, oHbFont, oFtFace, &ogik, cp, NULL);
-		glyph_initRender(&nglyph, nHbFont, nFtFace, &ngik, cp, NULL);
+		glyph_init_render(&oglyph, ohbfont, oftface, &ogik, cp, NULL);
+		glyph_init_render(&nglyph, nhbfont, nftface, &ngik, cp, NULL);
 		
 		if (!ogik.len)
 			printf("% 2.3f %% glyph added: u%04x.default\n", fprogress, cp);
@@ -311,15 +311,15 @@ int main (int argc, char *argv[]) {
 			if (ogik.len) gik_copy(&ofeatgik, &ogik);
 			if (ngik.len) gik_copy(&nfeatgik, &ngik);
 			
-			lastValue = 0;
+			last_value = 0;
 			
 			for (f = 1; ; f++) {
 				feature.value = f;
 				
 				hb_tag_to_string(feat, sfeat);
 				
-				glyph_initRender(&oglyph, oHbFont, oFtFace, &otmpgik, cp, &feature);
-				glyph_initRender(&nglyph, nHbFont, nFtFace, &ntmpgik, cp, &feature);
+				glyph_init_render(&oglyph, ohbfont, oftface, &otmpgik, cp, &feature);
+				glyph_init_render(&nglyph, nhbfont, nftface, &ntmpgik, cp, &feature);
 				
 				oeq = !ogik.len || gik_eq(&otmpgik, &ofeatgik) || gik_eq(&otmpgik, &ogik);
 				neq = !ngik.len || gik_eq(&ntmpgik, &nfeatgik) || gik_eq(&ntmpgik, &ngik);
@@ -330,12 +330,12 @@ int main (int argc, char *argv[]) {
 					printf("% 2.3f %% glyph deleted: u%04x.%s=%u\n", fprogress, cp, sfeat, f);
 				else if (!oeq && !neq)
 					compare(&oglyph, &nglyph, cp, sfeat, f, fprogress);
-				else lastValue = 1;
+				else last_value = 1;
 				
 				glyph_term(&nglyph);
 				glyph_term(&oglyph);
 				
-				if (lastValue)
+				if (last_value)
 					break;
 				
 				if (!oeq) gik_copy(&ofeatgik, &otmpgik);
