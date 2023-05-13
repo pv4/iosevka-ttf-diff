@@ -1,5 +1,5 @@
-#ifndef _20221228_055431_glyph_h
-#define _20221228_055431_glyph_h
+#ifndef h_20221228_055431_glyph
+#define h_20221228_055431_glyph
 
 #include "gik.h"
 #include "main.h"

@@ -1,5 +1,5 @@
-#ifndef _20221228_055431_gik_h
-#define _20221228_055431_gik_h
+#ifndef h_20221228_055431_gik
+#define h_20221228_055431_gik
 
 // Glyph identity key
 typedef struct {

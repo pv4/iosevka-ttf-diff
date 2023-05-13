@@ -1,5 +1,5 @@
-#ifndef _20221228_055431_glyph_box_h
-#define _20221228_055431_glyph_box_h
+#ifndef h_20221228_055431_glyph_box
+#define h_20221228_055431_glyph_box
 
 #include "glyph.h"
 
