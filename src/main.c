@@ -44,9 +44,11 @@ static void init (const char *ofile, const char *nfile) {
 	FT_Set_Pixel_Sizes(nftface, args.render_size, args.render_size);
 	
 	init_glyph();
+	init_gdumper();
 }
 
 static void term () {
+	term_gdumper();
 	term_glyph();
 	
 	hb_set_destroy(features);

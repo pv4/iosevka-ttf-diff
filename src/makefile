@@ -42,7 +42,8 @@ SOURCES = \
 	glyph.c \
 	gbox.c \
 	gdumper.c \
-	main.c
+	main.c \
+	png.c
 
 $(BIN): $(SOURCES)
 	pkg-config --print-errors --atleast-version $(DEP_HARFBUZZ_VERSION) $(DEP_HARFBUZZ)

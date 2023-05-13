@@ -9,7 +9,4 @@
 #include FT_IMAGE_H
 #include FT_GLYPH_H
 
-#include <png.h>
-#include <zlib.h>
-
 #endif
