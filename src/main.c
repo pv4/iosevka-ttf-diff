@@ -1,6 +1,6 @@
 #include "main.h"
 #include "glyph.h"
-#include "glyph_dumper.h"
+#include "gdumper.h"
 #include "gik.h"
 
 #include <stdio.h>
@@ -230,8 +230,8 @@ static void compare (glyph_t *o, glyph_t *n, hb_codepoint_t cp, const char *sfea
 		else
 			printf("% 2.3f %% glyph changed: u%04x.%s=%u, %x\n", fprogress, (unsigned)cp, sfeat, f, diff.index);
 		if (output_diff)
-			if (output_png) glyph_dumper_png_diff(&diff, o, n, pngpath);
-			else glyph_dumper_ascii_diff(&diff, o, n);
+			if (output_png) gdumper_png_diff(&diff, o, n, pngpath);
+			else gdumper_ascii_diff(&diff, o, n);
 	}
 	else
 		if (log_kept)

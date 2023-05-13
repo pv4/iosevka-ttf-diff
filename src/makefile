@@ -39,8 +39,8 @@ SOURCES = \
 	alloc.c \
 	gik.c \
 	glyph.c \
-	glyph_box.c \
-	glyph_dumper.c \
+	gbox.c \
+	gdumper.c \
 	main.c
 
 $(BIN): $(SOURCES)

@@ -1,9 +1,9 @@
-#include "glyph_dumper.h"
+#include "gdumper.h"
 #include "lib.h"
 
 static unsigned char pngbuf[3*8192];
 
-void glyph_dumper_ascii (glyph_t *g) {
+void gdumper_ascii (glyph_t *g) {
 	unsigned y, x;
 	unsigned char *p;
 	
@@ -18,7 +18,7 @@ void glyph_dumper_ascii (glyph_t *g) {
 	}
 }
 
-void glyph_dumper_ascii_diff (glyph_t *g, glyph_t *a, glyph_t *b) {
+void gdumper_ascii_diff (glyph_t *g, glyph_t *a, glyph_t *b) {
 	unsigned y, x;
 	int maxtop, minleft, atop, btop, aleft, bleft;
 	unsigned char *gp, *ap, *bp, d;
@@ -77,7 +77,7 @@ static inline void pngbuf_add (unsigned char *pngbuf, unsigned *n, unsigned char
 	pngbuf[(*n)++] = b;
 }
 
-void glyph_dumper_png_diff (glyph_t *g, glyph_t *a, glyph_t *b, const char *path) {
+void gdumper_png_diff (glyph_t *g, glyph_t *a, glyph_t *b, const char *path) {
 	png_structp png;
 	png_infop info;
 	FILE *file;

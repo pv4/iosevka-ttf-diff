@@ -1,6 +1,6 @@
 #include "glyph.h"
 #include "alloc.h"
-#include "glyph_box.h"
+#include "gbox.h"
 #include "lib.h"
 
 static hb_buffer_t *buf;
@@ -38,10 +38,10 @@ static void _glyph_apply_diff (glyph_t *g, glyph_t *a, unsigned top, unsigned le
 }
 
 void glyph_init_diff (glyph_t *g, glyph_t *a, glyph_t *b) {
-	glyph_box_t gbox;
+	gbox_t gbox;
 	
-	glyph_box_first(&gbox, a);
-	glyph_box_next(&gbox, b);
+	gbox_first(&gbox, a);
+	gbox_next(&gbox, b);
 	
 	g->index = a->index;
 	g->top = g->left = 0;
@@ -126,14 +126,14 @@ static void parts_render (glyph_t parts[], unsigned partslen, FT_Face ftface, hb
 }
 
 static void parts_combine (glyph_t parts[], unsigned partslen, glyph_t *g) {
-	glyph_box_t gbox;
+	gbox_t gbox;
 	glyph_t *p;
 	unsigned i;
 	
-	glyph_box_first(&gbox, &parts[0]);
+	gbox_first(&gbox, &parts[0]);
 	
 	for (i = 1; i != partslen; i++)
-		glyph_box_next(&gbox, &parts[i]);
+		gbox_next(&gbox, &parts[i]);
 	
 	g->index = parts[0].index;
 	g->top = gbox.maxtop;
