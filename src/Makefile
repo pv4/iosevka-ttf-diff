@@ -2,7 +2,7 @@
 # src/Makefile
 #
 
-VERSION = 0.1.next
+VERSION = 0.2.dev
 
 BIN = iosevka-ttf-diff
 

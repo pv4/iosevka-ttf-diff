@@ -1,1 +1,4 @@
 /src/iosevka-ttf-diff
+/test/smoke-a.ttf
+/test/smoke-b.ttf
+/test/smoke-tmp-*
