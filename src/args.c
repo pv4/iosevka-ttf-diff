@@ -23,7 +23,7 @@ int args_init (args_t *a, int argc, char *argv[]) {
 	a->out_diff = 1;
 	a->out_new = a->out_old = 0;
 	a->out_png = NULL;
-	a->old_file = a->new_file = NULL;
+	a->old_file = a->new_file = a->vmap_file = NULL;
 	
 	file = 'o';
 	err = 0;
@@ -46,6 +46,14 @@ int args_init (args_t *a, int argc, char *argv[]) {
 				err = 1;
 				break;
 			}
+		else if (p = argparam(argv[i], "-vmap=")) {
+			f = fopen(p, "r");
+			if (!f)
+				{ err = 1; continue; }
+			fclose(f);
+			
+			a->vmap_file = p;
+		}
 		else if (p = argparam(argv[i], "-renderSize="))
 			a->render_size = atoi(p);
 		else if (p = argparam(argv[i], "-accuracy="))
@@ -93,6 +101,10 @@ int args_init (args_t *a, int argc, char *argv[]) {
 		"  -outputSelect=diff\n"
 		"             Changes to output, separated by comma. Possible values\n"
 		"             are: diff, new, old .\n"
+		"  -vmap=/path/to/some.vmap\n"
+		"             Path to a variant map to use for proper detection of\n"
+		"             differencies in case tags/ranks of some glyph variants\n"
+		"             changed between versions.\n"
 		"  -?, -h, -help, --help\n"
 		"             Show this message.\n"
 		"\n"

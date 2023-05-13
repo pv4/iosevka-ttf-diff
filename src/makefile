@@ -44,7 +44,8 @@ SOURCES = \
 	gbox.c \
 	gdumper.c \
 	main.c \
-	png.c
+	png.c \
+	vmap.c
 
 $(BIN): $(SOURCES)
 	pkg-config --print-errors --atleast-version $(DEP_HARFBUZZ_VERSION) $(DEP_HARFBUZZ)
