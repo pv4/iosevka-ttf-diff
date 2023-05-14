@@ -10,7 +10,13 @@
 #include <unistd.h>
 #include <string.h>
 
-typedef struct { unsigned current, total; } progress_t;
+typedef struct {
+	unsigned
+		progress, progress_limit,
+		ocodepoints, ofeatures,
+		ncodepoints, nfeatures,
+		deleted, added, changed, kept;
+} stat_t;
 
 static args_t args;
 
@@ -20,6 +26,7 @@ static hb_font_t *ohbfont, *nhbfont;
 static FT_Library ft;
 static FT_Face oftface, nftface;
 
+static stat_t stat;
 static font_t ofont, nfont;
 static vmap_t vmap;
 static hb_set_t *ocodepoints, *ovalues, *ncodepoints, *nvalues;
@@ -111,19 +118,30 @@ next:
 	return 0;
 }
 
+static inline float progress ()
+	{ return 100.0*stat.progress/stat.progress_limit; }
+
 static void codepoint_deleted (hb_codepoint_t cp, hb_feature_t *of) {
+	stat.deleted++;
+	
 	if (!of)
-		printf("U+%04X: deleted\n", (unsigned)cp);
+		printf("%6.3f %% U+%04X: deleted\n",
+			progress(), (unsigned)cp);
 	else
-		printf("U+%04X.%c%c%c%c=%u: deleted\n", (unsigned)cp,
+		printf("%6.3f %% U+%04X.%c%c%c%c=%u: deleted\n",
+			progress(), (unsigned)cp,
 			HB_UNTAG(of->tag), (unsigned)of->value);
 }
 
 static void codepoint_added (hb_codepoint_t cp, hb_feature_t *nf) {
+	stat.added++;
+	
 	if (!nf)
-		printf("U+%04X: added\n", (unsigned)cp);
+		printf("%6.3f %% U+%04X: added\n",
+			progress(), (unsigned)cp);
 	else
-		printf("U+%04X.%c%c%c%c=%u: added\n", (unsigned)cp,
+		printf("%6.3f %% U+%04X.%c%c%c%c=%u: added\n",
+			progress(), (unsigned)cp,
 			HB_UNTAG(nf->tag), (unsigned)nf->value);
 }
 
@@ -138,18 +156,24 @@ static void codepoint_kept (hb_codepoint_t cp, hb_feature_t *of, hb_feature_t *n
 	glyph_init_diff(&d, &o, &n);
 	
 	changed = glyph_changed(&d, args.accuracy);
+	if (changed) stat.changed++;
+	else stat.kept++;
 	
 	if (changed || args.log_kept) {
 		status = changed ? "changed" : "kept";
 		
 		if (!nf)
-			printf("U+%04X: %s\n", (unsigned)cp, status);
+			printf("%6.3f %% U+%04X: %s\n",
+				progress(), (unsigned)cp,
+				status);
 		else if (of->tag == nf->tag && of->value == nf->value)
-			printf("U+%04X.%c%c%c%c=%u: %s\n", (unsigned)cp,
+			printf("%6.3f %% U+%04X.%c%c%c%c=%u: %s\n",
+				progress(), (unsigned)cp,
 				HB_UNTAG(nf->tag), (unsigned)nf->value,
 				status);
 		else
-			printf("U+%04X.%c%c%c%c=%u (was %c%c%c%c=%u): %s\n", (unsigned)cp,
+			printf("%6.3f %% U+%04X.%c%c%c%c=%u (was %c%c%c%c=%u): %s\n",
+				progress(), (unsigned)cp,
 				HB_UNTAG(nf->tag), (unsigned)nf->value,
 				HB_UNTAG(of->tag), (unsigned)of->value,
 				status);
@@ -188,18 +212,40 @@ int main (int argc, char *argv[]) {
 	if (args.vmap_file)
 		vmap_load_e(&vmap, args.vmap_file);
 	
+	stat.ocodepoints =	hb_set_get_population(ofont.codepoints);
+	stat.ofeatures = hb_set_get_population(ofont.features);
+	stat.ncodepoints =	hb_set_get_population(nfont.codepoints);
+	stat.nfeatures = hb_set_get_population(nfont.features);
+	
+	stat.deleted = stat.added = stat.changed = stat.kept = 0;
+	
 	of.start = nf.start = HB_FEATURE_GLOBAL_START;
 	of.end = nf.end = HB_FEATURE_GLOBAL_END;
 	
+	stat.progress_limit =
+		hb_set_get_population(ofont.codepoints) +
+		hb_set_get_population(nfont.codepoints);
+	for_hb_set_t (ofont.features, ot) {
+		font_collect_feature_sets_clean(&ofont, ocodepoints, ovalues, ot);
+		stat.progress_limit +=
+			hb_set_get_population(ocodepoints) * hb_set_get_population(ovalues);
+	}
+	for_hb_set_t (nfont.features, nt) {
+		font_collect_feature_sets_clean(&nfont, ncodepoints, nvalues, nt);
+		stat.progress_limit +=
+			hb_set_get_population(ncodepoints) * hb_set_get_population(nvalues);
+	}
+	stat.progress = 0;
+	
 	for_hb_set_t (ofont.codepoints, cp)
 		if (!hb_set_has(nfont.codepoints, cp))
-			codepoint_deleted(cp, NULL);
+			codepoint_deleted(cp, NULL), stat.progress++;
 	for_hb_set_t (nfont.codepoints, cp)
 		if (!hb_set_has(ofont.codepoints, cp))
-			codepoint_added(cp, NULL);
+			codepoint_added(cp, NULL), stat.progress++;
 	for_hb_set_t (nfont.codepoints, cp)
 		if (hb_set_has(ofont.codepoints, cp))
-			codepoint_kept(cp, NULL, NULL);
+			codepoint_kept(cp, NULL, NULL), stat.progress+=2;
 	
 	for_hb_set_t (ofont.features, ot) {
 		vmap_upgrade_tag(&vmap, &nt, ot);
@@ -210,7 +256,7 @@ int main (int argc, char *argv[]) {
 		for_hb_set_t (ovalues, ov) {
 			of.value = ov;
 			for_hb_set_t (ocodepoints, cp)
-				codepoint_deleted(cp, &of);
+				codepoint_deleted(cp, &of), stat.progress++;
 		}
 	}
 	for_hb_set_t (nfont.features, nt) {
@@ -222,7 +268,7 @@ int main (int argc, char *argv[]) {
 		for_hb_set_t (nvalues, nv) {
 			nf.value = nv;
 			for_hb_set_t (ncodepoints, cp)
-				codepoint_added(cp, &nf);
+				codepoint_added(cp, &nf), stat.progress++;
 		}
 	}
 	for_hb_set_t (nfont.features, nt) {
@@ -240,7 +286,7 @@ int main (int argc, char *argv[]) {
 			
 			of.value = ov;
 			for_hb_set_t (ocodepoints, cp)
-				codepoint_deleted(cp, &of);
+				codepoint_deleted(cp, &of), stat.progress++;
 		}
 		for_hb_set_t (nvalues, nv) {
 			vmap_downgrade_value(&vmap, &t, &ov, nt, nv);
@@ -248,7 +294,7 @@ int main (int argc, char *argv[]) {
 			
 			nf.value = nv;
 			for_hb_set_t (ncodepoints, cp)
-				codepoint_added(cp, &nf);
+				codepoint_added(cp, &nf), stat.progress++;
 		}
 		for_hb_set_t (nvalues, nv) {
 			vmap_downgrade_value(&vmap, &t, &ov, nt, nv);
@@ -258,15 +304,21 @@ int main (int argc, char *argv[]) {
 			
 			for_hb_set_t (ocodepoints, cp)
 				if (!hb_set_has(ncodepoints, cp))
-					codepoint_deleted(cp, &of);
+					codepoint_deleted(cp, &of), stat.progress++;
 			for_hb_set_t (ncodepoints, cp)
 				if (!hb_set_has(ocodepoints, cp))
-					codepoint_added(cp, &nf);
+					codepoint_added(cp, &nf), stat.progress++;
 			for_hb_set_t (ncodepoints, cp)
 				if (hb_set_has(ocodepoints, cp))
-					codepoint_kept(cp, &of, &nf);
+					codepoint_kept(cp, &of, &nf), stat.progress+=2;
 		}
 	}
+	
+	printf(
+		"Codepoints: %u old/%u new, variant features: %u old/%u new\n"
+			"Codepoint variants: %u deleted, %u added, %u changed, %u kept\n",
+		stat.ocodepoints, stat.ncodepoints, stat.ofeatures, stat.nfeatures,
+		stat.deleted, stat.added, stat.changed, stat.kept);
 	
 	ret = 0;
 	
