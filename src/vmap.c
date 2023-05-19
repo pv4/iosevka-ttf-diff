@@ -13,7 +13,7 @@ static void parse_variant (char **pp, hb_codepoint_t *tag, uint32_t *val) {
 	*tag = hb_tag_from_string(p, 4);
 	p += 4;
 	
-	if (*p != '.') {
+	if (*p != '=') {
 		*val = 0;
 		*pp = p;
 		return;
