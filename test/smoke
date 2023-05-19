@@ -6,4 +6,4 @@ umask 022
 cd "$(dirname "$0")"
 
 make -C ../src
-../src/iosevka-ttf-diff -logKept -outputTarget=png:./smoke-tmp- ./smoke-a.ttf ./smoke-b.ttf
+../src/iosevka-ttf-diff -lA -f png:./smoke-tmp- ./smoke-a.ttf ./smoke-b.ttf

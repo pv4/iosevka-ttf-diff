@@ -4,7 +4,8 @@
 extern int error_code;
 enum {
 	ERROR_NONE = 0,
-	ERROR_EXIT
+	ERROR_EXIT = 1,
+	ERROR_USAGE = 2
 };
 
 extern void error_printf(const char *fmt, ...);

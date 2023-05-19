@@ -1,4 +1,6 @@
 #include "main.h"
+
+#include "error.h"
 #include "args.h"
 #include "glyph.h"
 #include "gdumper.h"
@@ -124,25 +126,27 @@ static inline float progress ()
 static void codepoint_deleted (hb_codepoint_t cp, hb_feature_t *of) {
 	stat.deleted++;
 	
-	if (!of)
-		printf("%6.3f %% U+%04X: deleted\n",
-			progress(), (unsigned)cp);
-	else
-		printf("%6.3f %% U+%04X.%c%c%c%c=%u: deleted\n",
-			progress(), (unsigned)cp,
-			HB_UNTAG(of->tag), (unsigned)of->value);
+	if (args.log & ARGS_LOG_DELETED)
+		if (!of)
+			printf("%6.3f %% U+%04X: deleted\n",
+				progress(), (unsigned)cp);
+		else
+			printf("%6.3f %% U+%04X.%c%c%c%c=%u: deleted\n",
+				progress(), (unsigned)cp,
+				HB_UNTAG(of->tag), (unsigned)of->value);
 }
 
 static void codepoint_added (hb_codepoint_t cp, hb_feature_t *nf) {
 	stat.added++;
 	
-	if (!nf)
-		printf("%6.3f %% U+%04X: added\n",
-			progress(), (unsigned)cp);
-	else
-		printf("%6.3f %% U+%04X.%c%c%c%c=%u: added\n",
-			progress(), (unsigned)cp,
-			HB_UNTAG(nf->tag), (unsigned)nf->value);
+	if (args.log & ARGS_LOG_ADDED)
+		if (!nf)
+			printf("%6.3f %% U+%04X: added\n",
+				progress(), (unsigned)cp);
+		else
+			printf("%6.3f %% U+%04X.%c%c%c%c=%u: added\n",
+				progress(), (unsigned)cp,
+				HB_UNTAG(nf->tag), (unsigned)nf->value);
 }
 
 static void codepoint_kept (hb_codepoint_t cp, hb_feature_t *of, hb_feature_t *nf) {
@@ -159,7 +163,10 @@ static void codepoint_kept (hb_codepoint_t cp, hb_feature_t *of, hb_feature_t *n
 	if (changed) stat.changed++;
 	else stat.kept++;
 	
-	if (changed || args.log_kept) {
+	if (
+		changed && args.log & ARGS_LOG_CHANGED ||
+		!changed && args.log & ARGS_LOG_KEPT) {
+		
 		status = changed ? "changed" : "kept";
 		
 		if (!nf)
@@ -179,7 +186,7 @@ static void codepoint_kept (hb_codepoint_t cp, hb_feature_t *of, hb_feature_t *n
 				status);
 	}
 	
-	if (changed && args.out_diff) {
+	if (changed && args.out & ARGS_OUT_CHANGED) {
 		if (args.out_png) {
 			if (!nf)
 				sprintf(out, "%su%04x.diff.png", args.out_png, (unsigned)cp);
@@ -200,12 +207,14 @@ int main (int argc, char *argv[]) {
 	hb_codepoint_t cp;
 	hb_tag_t t, ot, nt;
 	uint32_t ov, nv;
-	int ret;
+	int status;
 	
-	ret = args_init(&args, argc, argv);
-	if (ret) return ret;
+	status = 2;
 	
-	ret = 1;
+	if (args_init(&args, argc, argv)) return 0;
+	goto_if_rethrow(args);
+	
+	status = 1;
 	
 	init(args.old_file, args.new_file);
 	
@@ -320,9 +329,10 @@ int main (int argc, char *argv[]) {
 		stat.ocodepoints, stat.ncodepoints, stat.ofeatures, stat.nfeatures,
 		stat.deleted, stat.added, stat.changed, stat.kept);
 	
-	ret = 0;
+	status = 0;
 	
 	term();
 	
-	return ret;
+catch_args:
+	return status;
 }

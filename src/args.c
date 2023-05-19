@@ -1,114 +1,195 @@
 #include "args.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "error.h"
+#include "lib.h"
 
-static const char *argparam (const char *arg, const char *opt) {
-	unsigned len;
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+static void usage (FILE *f, char *argv[]) {
+	fprintf(f,
+"Usage:\n"
+" %s [<options>] <old-ttf> <new-ttf>\n"
+"\n"
+"Compare two release ttf files of Iosevka and log/output the differencies.\n"
+"\n"
+"Options:\n"
+" -m <file>              use the variant map file to proper detect shape\n"
+"                        differences in case tags/ranks of some codepoint\n"
+"                        variants changed between <old-ttf> and <new-ttf>\n"
+" -s <number>            render size for codepoint variant glyphs (default is\n"
+"                        512)\n"
+" -a <number>            accuracy to only consider codepoint variant shapes\n"
+"                        different if the shapes have at least one continous\n"
+"                        square area of the given size where no pixels exist\n"
+"                        that are equal between the shapes (default is 5); 1\n"
+"                        means exact shape match\n"
+" -l<filter>             codepoint variants to log (if none are given\n"
+"                        '-ld -la -lc' are assumed)\n"
+"    -ld                 only present in <old-ttf>\n"
+"    -la                 only present in <new-ttf>\n"
+"    -lc                 having different shapes in <old-ttf> and <new-ttf> \n"
+"    -lk                 having similar shapes in <old-ttf> and <new-ttf> \n"
+"    -lA                 all of the above\n"
+"    -lN                 don't log anything\n"
+" -o<filter>             information type to output (if none are given '-oc' is\n"
+"                        assumed)\n"
+"    -od                 images of codepoint variants only present in <old-ttf>\n"
+"    -oa                 images of codepoint variants only present in <new-ttf>\n"
+"    -oc                 images of codepoint variants with different shapes in\n"
+"                        <old-ttf> and <new-ttf>, that contain shapes of both\n"
+"                        variants and a shape visually demonstating the\n"
+"                        difference between the variants; only codepoint\n"
+"                        variants present both in <old-ttf> and in <new-ttf>\n"
+"                        are considered\n"
+"    -oA                 all of the above\n"
+"    -oN                 don't output anything\n"
+" -f <output-format>     output format (by default outputs to a standard output\n"
+"                        in a format something like ascii art)\n"
+"    png:<prefix>        output to png files with names starting with <prefix>\n"
+" -?                     display this help and exit\n"
+"\n"
+"Examples:\n"
+"1. Just log all the changes without creating output images. Use reduced (less\n"
+"accurate) render size and the best possible accuracy (pixel-by-pixel match of\n"
+"the rendered codepoint variant shapes).\n"
+" iosevka-ttf-diff \\\n"
+"  -lA -oN -s 128 -a 1 \\\n"
+"  ./iosevka21.0.0-heavy.ttf ./iosevka22.0.0-heavy.ttf\n"
+"\n"
+"2. Only log codepoint variants changed between 18.0.0 and 21.0.0 releases.\n"
+"Output diffs to png files with names like ./out-u0179_cv25_9.diff.png (i.e.\n"
+"to the current directory).\n"
+" iosevka-ttf-diff \\\n"
+"  -lc -f png:./out- \\\n"
+"  ./iosevka18.0.0-heavy.ttf ./iosevka21.0.0-heavy.ttf\n"
+"\n"
+"3. Log deleted/added/changed codepoint variants, use the given variant map\n"
+"file, output diffs to png files with names like\n"
+"./iosevka22.0.0-heavy/u0179_cv25_9.diff.png (i.e. to ./iosevka22.0.0-heavy\n"
+"directory).\n"
+" iosevka-ttf-diff \\\n"
+"  -m ../vmaps/22.0.0.vmap \\\n"
+"  -f png:./iosevka22.0.0-heavy/ \\\n"
+"  ./iosevka21.0.0-heavy.ttf ./iosevka22.0.0-heavy.ttf\n"
+"\n"
+"iosevka-ttf-diff version %s\n",
+	basename(argv[0]), VERSION);
+}
+
+static unsigned n_parse (const char *p) {
+	int i;
+	unsigned n;
 	
-	len = strlen(opt);
-	return strncmp(opt, arg, len) ? NULL : arg+len;
+	if (p[0] == '0') return 0;
+	
+	n = 0;
+	for (i = 0; p[i]; i++) {
+		if (!isdigit_c(p[i])) return 0;
+		n = n*10 + p[i]-'0';
+	}
+	
+	return n;
 }
 
 int args_init (args_t *a, int argc, char *argv[]) {
-	FILE *f;
-	const char *p;
-	unsigned i;
-	int err, file;
+	int i, log_reset, out_reset;
 	
 	a->render_size = 512;
 	a->accuracy = 5;
-	a->log_kept = 0;
-	a->out_diff = 1;
-	a->out_new = a->out_old = 0;
-	a->out_png = NULL;
-	a->old_file = a->new_file = a->vmap_file = NULL;
+	a->log = ARGS_LOG_DELETED|ARGS_LOG_ADDED|ARGS_LOG_CHANGED;
+	a->out = ARGS_OUT_CHANGED;
+	a->vmap_file = a->out_png = a->old_file = a->new_file = NULL;
 	
-	file = 'o';
-	err = 0;
-	for (i = 1; i != argc && !err; i++)
-		if ('-' != argv[i][0])
-			switch (file) {
-			case 'o':
-			case 'n':
-				f = fopen(argv[i], "r");
-				if (!f)
-					{ err = 1; break; }
-				fclose(f);
-				
-				switch (file) {
-				case 'o': a->old_file = argv[i]; file = 'n'; break;
-				case 'n': a->new_file = argv[i]; file = '-'; break;
+	log_reset = out_reset = 1;
+	
+	for (;;)
+		switch (getopt(argc, argv, ":m:s:a:l:o:f:")) {
+		case 'm':
+			a->vmap_file = optarg;
+			if (-1 == access(a->vmap_file, R_OK))
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unreadable variant map: '%s'\n", argv[0], a->vmap_file));
+			break;
+		case 's':
+			a->render_size = n_parse(optarg);
+			if (!a->render_size)
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unrecognized render size: '%s'\n", argv[0], optarg));
+			break;
+		case 'a':
+			a->accuracy = n_parse(optarg);
+			if (!a->accuracy)
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unrecognized accuracy: '%s'\n", argv[0], optarg));
+			break;
+		case 'l':
+			if (log_reset) a->log = 0, log_reset = 0;
+			for (i = 0; optarg[i]; i++)
+				switch(optarg[i]) {
+				case 'd': a->log |= ARGS_LOG_DELETED; break;
+				case 'a': a->log |= ARGS_LOG_ADDED; break;
+				case 'c': a->log |= ARGS_LOG_CHANGED; break;
+				case 'k': a->log |= ARGS_LOG_KEPT; break;
+				case 'A':
+					a->log = ARGS_LOG_DELETED|ARGS_LOG_ADDED|ARGS_LOG_CHANGED|ARGS_LOG_KEPT;
+					break;
+				case 'N': a->log = 0; break;
+				default:
+					goto_throw_verbose(err, ERROR_USAGE,
+						("%s: unrecognized log filter: '%c'\n", argv[0], optarg[i]));
 				}
-				break;
-			default:
-				err = 1;
-				break;
-			}
-		else if (p = argparam(argv[i], "-vmap=")) {
-			f = fopen(p, "r");
-			if (!f)
-				{ err = 1; continue; }
-			fclose(f);
+			break;
+		case 'o':
+			if (out_reset) a->out = 0, out_reset = 0;
+			for (i = 0; optarg[i]; i++)
+				switch(optarg[i]) {
+				case 'd': a->out |= ARGS_OUT_DELETED; break;
+				case 'a': a->out |= ARGS_OUT_ADDED; break;
+				case 'c': a->out |= ARGS_OUT_CHANGED; break;
+				case 'A': a->out = ARGS_OUT_DELETED|ARGS_OUT_ADDED|ARGS_OUT_CHANGED; break;
+				case 'N': a->out = 0; break;
+				default:
+					goto_throw_verbose(err, ERROR_USAGE,
+						("%s: unrecognized output filter: '%c'\n", argv[0], optarg[i]));
+				}
+			break;
+		case 'f':
+			if (strncmp(optarg, "png:", 4))
+					goto_throw_verbose(err, ERROR_USAGE,
+						("%s: unrecognized format prefix: '%s'\n", argv[0], optarg));
+			a->out_png = optarg+4;
+			break;
+		case '?':
+			if ('?' != optopt)
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unrecognized option: '-%c'\n", argv[0], optopt));
+			usage(stdout, argv);
+			return 1;
+		case ':':
+			goto_throw_verbose(err, ERROR_USAGE,
+				("%s: option requires an argument: '-%c'\n", argv[0], optopt));
+		case -1:
+			if (optind != argc-2)
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: missing %s ttf\n", argv[0], optind+1 == argc ? "new" : "old"));
 			
-			a->vmap_file = p;
+			a->old_file = argv[optind+0];
+			a->new_file = argv[optind+1];
+			
+			if (-1 == access(a->old_file, R_OK))
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unreadable old ttf: '%s'\n", argv[0], a->old_file));
+			
+			if (-1 == access(a->new_file, R_OK))
+				goto_throw_verbose(err, ERROR_USAGE,
+					("%s: unreadable new ttf: '%s'\n", argv[0], a->new_file));
+			
+			return 0;
 		}
-		else if (p = argparam(argv[i], "-renderSize="))
-			a->render_size = atoi(p);
-		else if (p = argparam(argv[i], "-accuracy="))
-			a->accuracy = atoi(p);
-		else if (p = argparam(argv[i], "-logKept"))
-			a->log_kept = 1;
-		else if (p = argparam(argv[i], "-outputTarget=")) {
-			if (!strncmp(p, "png:", 4)) a->out_png = p+4;
-			else err = 1;
-		}
-		else if (p = argparam(argv[i], "-outputSelect=")) {
-			a->out_diff = a->out_new = a->out_old = 0;
-			while (*p)
-				if (!strncmp(p, "diff,", 5)) { p += 5; a->out_diff = 1; }
-				else if (!strcmp(p, "diff")) { p += 4; a->out_diff = 1; }
-				else if (!strncmp(p, "new,", 4)) { p += 4; a->out_new = 1; }
-				else if (!strcmp(p, "new")) { p += 3; a->out_new = 1; }
-				else if (!strncmp(p, "old,", 4)) { p += 4; a->out_old = 1; }
-				else if (!strcmp(p, "old")) { p += 3; a->out_old = 1; }
-				else { err = 1; break; }
-		}
-		else err = 1;
-	if (!a->old_file || !a->new_file || a->accuracy < 1) err = 1;
 	
-	if (!err) return 0;
-	
-	fprintf(stderr,
-		"Usage: \n"
-		"  %s [OPTION]... /path/to/old.ttf /path/to/new.ttf\n"
-		"\n"
-		"Options:\n"
-		"  -renderSize=512\n"
-		"             Size of rendered glyphs.\n"
-		"  -accuracy=5\n"
-		"             Consider glyphs different only if at least one continous\n"
-		"             area exists of the given size (5px x 5px) or larger\n"
-		"             which is ПОЛНОСТЬЮ different in both glyphs\n"
-		"  -logKept   Log glyphs that are not changed.\n"
-		"  -outputTarget=png:/output/pngs/prefix\n"
-		"             Output each change to png file instead of stdout. File\n"
-		"             name is appended to the value provided,\n"
-		"             e.g. /output/pngs/prefixu002e.diff.png . If providing\n"
-		"             a directory end the arument with a slash,\n"
-		"             e.g. -outputTarget=png:/path/to/pngs/dir/ .\n"
-		"  -outputSelect=diff\n"
-		"             Changes to output, separated by comma. Possible values\n"
-		"             are: diff, new, old .\n"
-		"  -vmap=/path/to/some.vmap\n"
-		"             Path to a variant map to use for proper detection of\n"
-		"             differencies in case tags/ranks of some glyph variants\n"
-		"             changed between versions.\n"
-		"  -?, -h, -help, --help\n"
-		"             Show this message.\n"
-		"\n"
-		"Version: %s\n",
-		argv[0], VERSION);
-	return 1;
+catch_err:
+	usage(stderr, argv);
+	return 0;
 }
