@@ -1,5 +1,5 @@
 #
-# src/Makefile
+# src/makefile
 #
 
 VERSION = 0.2.dev

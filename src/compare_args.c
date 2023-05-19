@@ -1,3 +1,5 @@
+/* src/compare_args.c */
+
 #include "compare_args.h"
 
 #include "error.h"

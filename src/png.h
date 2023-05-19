@@ -1,3 +1,5 @@
+/* src/png.h */
+
 #ifndef h_20221228_055431_png
 #define h_20221228_055431_png
 

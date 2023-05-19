@@ -1,3 +1,5 @@
+/* src/png.c */
+
 #include "png.h"
 
 #include "alloc.h"

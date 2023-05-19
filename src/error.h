@@ -1,3 +1,5 @@
+/* src/error.h */
+
 #ifndef h_20221228_055431_error
 #define h_20221228_055431_error
 

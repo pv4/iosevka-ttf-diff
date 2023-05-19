@@ -1,3 +1,5 @@
+/* src/gbox.h */
+
 #ifndef h_20221228_055431_gbox
 #define h_20221228_055431_gbox
 

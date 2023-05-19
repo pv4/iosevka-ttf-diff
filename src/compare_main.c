@@ -1,3 +1,5 @@
+/* src/compare_main.c */
+
 #include "compare_main.h"
 
 #include "error.h"

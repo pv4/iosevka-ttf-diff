@@ -1,3 +1,5 @@
+/* src/main.c */
+
 #include "compare_main.h"
 #include "map_main.h"
 

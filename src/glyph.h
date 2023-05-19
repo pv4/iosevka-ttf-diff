@@ -1,3 +1,5 @@
+/* src/glyph.h */
+
 #ifndef h_20221228_055431_glyph
 #define h_20221228_055431_glyph
 

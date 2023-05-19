@@ -1,3 +1,5 @@
+/* src/gdumper.c */
+
 #include "gdumper.h"
 #include "png.h"
 #include "lib.h"

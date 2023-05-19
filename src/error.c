@@ -1,3 +1,5 @@
+/* src/error.c */
+
 #include "error.h"
 
 #include <stdio.h>

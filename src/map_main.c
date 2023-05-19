@@ -1,3 +1,5 @@
+/* src/map_main.c */
+
 #include "map_main.h"
 
 #include "lib.h"

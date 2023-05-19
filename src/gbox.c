@@ -1,3 +1,5 @@
+/* src/gbox.c */
+
 #include "gbox.h"
 #include "lib.h"
 

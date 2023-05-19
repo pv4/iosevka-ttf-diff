@@ -1,3 +1,5 @@
+/* src/vmap.c */
+
 #include "vmap.h"
 #include "error.h"
 

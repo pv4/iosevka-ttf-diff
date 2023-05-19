@@ -1,3 +1,5 @@
+/* src/font.c */
+
 #include "font.h"
 #include "error.h"
 

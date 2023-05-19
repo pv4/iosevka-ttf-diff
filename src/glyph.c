@@ -1,3 +1,5 @@
+/* src/glyph.c */
+
 #include "glyph.h"
 #include "alloc.h"
 #include "gbox.h"
