@@ -212,9 +212,9 @@ int main (int argc, char *argv[]) {
 	if (args.vmap_file)
 		vmap_load_e(&vmap, args.vmap_file);
 	
-	stat.ocodepoints =	hb_set_get_population(ofont.codepoints);
+	stat.ocodepoints = hb_set_get_population(ofont.codepoints);
 	stat.ofeatures = hb_set_get_population(ofont.features);
-	stat.ncodepoints =	hb_set_get_population(nfont.codepoints);
+	stat.ncodepoints = hb_set_get_population(nfont.codepoints);
 	stat.nfeatures = hb_set_get_population(nfont.features);
 	
 	stat.deleted = stat.added = stat.changed = stat.kept = 0;

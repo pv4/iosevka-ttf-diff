@@ -22,7 +22,7 @@ extern void error_printf(const char *fmt, ...);
 		goto catch_##label; \
 	} while (0)
 
-#define goto_rethrow(label) \
+#define goto_if_rethrow(label) \
 	do { \
 		if (ERROR_NONE != error_code) goto catch_##label; \
 	} while(0)

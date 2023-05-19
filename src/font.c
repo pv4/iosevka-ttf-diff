@@ -81,7 +81,7 @@ void font_collect_feature_sets_clean (font_t *f, hb_set_t *codepoints, hb_set_t 
 	
 	hb_set_clear(values);
 	
-	if (ft == HB_TAG('W', 'W', 'I', 'D') || ft == HB_TAG('N','W','I','D'))
+	if (ft == HB_TAG('W','W','I','D') || ft == HB_TAG('N','W','I','D'))
 		hb_set_add(values, 1);
 	else
 		for_hb_set_t (glyphs, g) {

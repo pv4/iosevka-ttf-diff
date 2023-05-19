@@ -11,6 +11,6 @@
 #include FT_IMAGE_H
 #include FT_GLYPH_H
 
-#define for_hb_set_t(set, i) for ((i) = HB_SET_VALUE_INVALID; hb_set_next((set), &(i)); )
+#define for_hb_set_t(set, i) for ((i) = HB_SET_VALUE_INVALID; hb_set_next((set), &(i));)
 
 #endif
