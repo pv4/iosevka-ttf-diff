@@ -1,4 +1,4 @@
-#include "args.h"
+#include "compare_args.h"
 
 #include "error.h"
 #include "lib.h"
@@ -10,7 +10,7 @@
 static void usage (FILE *f, char *argv[]) {
 	fprintf(f,
 "Usage:\n"
-" %s [<options>] <old-ttf> <new-ttf>\n"
+" %s %s [<options>] <old-ttf> <new-ttf>\n"
 "\n"
 "Compare two release ttf files of Iosevka and log/output the differencies.\n"
 "\n"
@@ -54,14 +54,14 @@ static void usage (FILE *f, char *argv[]) {
 "1. Just log all the changes without creating output images. Use reduced (less\n"
 "accurate) render size and the best possible accuracy (pixel-by-pixel match of\n"
 "the rendered codepoint variant shapes).\n"
-" iosevka-ttf-diff \\\n"
+" iosevka-ttf-diff compare \\\n"
 "  -lA -oN -s 128 -a 1 \\\n"
 "  ./iosevka21.0.0-heavy.ttf ./iosevka22.0.0-heavy.ttf\n"
 "\n"
 "2. Only log codepoint variants changed between 18.0.0 and 21.0.0 releases.\n"
 "Output diffs to png files with names like ./out-u0179_cv25_9.diff.png (i.e.\n"
 "to the current directory).\n"
-" iosevka-ttf-diff \\\n"
+" iosevka-ttf-diff compare \\\n"
 "  -lc -f png:./out- \\\n"
 "  ./iosevka18.0.0-heavy.ttf ./iosevka21.0.0-heavy.ttf\n"
 "\n"
@@ -69,13 +69,13 @@ static void usage (FILE *f, char *argv[]) {
 "file, output diffs to png files with names like\n"
 "./iosevka22.0.0-heavy/u0179_cv25_9.diff.png (i.e. to ./iosevka22.0.0-heavy\n"
 "directory).\n"
-" iosevka-ttf-diff \\\n"
+" iosevka-ttf-diff compare \\\n"
 "  -m ../vmaps/22.0.0.vmap \\\n"
 "  -f png:./iosevka22.0.0-heavy/ \\\n"
 "  ./iosevka21.0.0-heavy.ttf ./iosevka22.0.0-heavy.ttf\n"
 "\n"
 "iosevka-ttf-diff version %s\n",
-	basename(argv[0]), VERSION);
+	basename(argv[0]), argv[1], VERSION);
 }
 
 static unsigned n_parse (const char *p) {
@@ -93,16 +93,17 @@ static unsigned n_parse (const char *p) {
 	return n;
 }
 
-int args_init (args_t *a, int argc, char *argv[]) {
+int compare_args_init (compare_args_t *a, int argc, char *argv[]) {
 	int i, log_reset, out_reset;
 	
 	a->render_size = 512;
 	a->accuracy = 5;
-	a->log = ARGS_LOG_DELETED|ARGS_LOG_ADDED|ARGS_LOG_CHANGED;
-	a->out = ARGS_OUT_CHANGED;
+	a->log = COMPARE_ARGS_LOG_DELETED|COMPARE_ARGS_LOG_ADDED|COMPARE_ARGS_LOG_CHANGED;
+	a->out = COMPARE_ARGS_OUT_CHANGED;
 	a->vmap_file = a->out_png = a->old_file = a->new_file = NULL;
 	
 	log_reset = out_reset = 1;
+	optind = 2;
 	
 	for (;;)
 		switch (getopt(argc, argv, ":m:s:a:l:o:f:")) {
@@ -128,12 +129,16 @@ int args_init (args_t *a, int argc, char *argv[]) {
 			if (log_reset) a->log = 0, log_reset = 0;
 			for (i = 0; optarg[i]; i++)
 				switch(optarg[i]) {
-				case 'd': a->log |= ARGS_LOG_DELETED; break;
-				case 'a': a->log |= ARGS_LOG_ADDED; break;
-				case 'c': a->log |= ARGS_LOG_CHANGED; break;
-				case 'k': a->log |= ARGS_LOG_KEPT; break;
+				case 'd': a->log |= COMPARE_ARGS_LOG_DELETED; break;
+				case 'a': a->log |= COMPARE_ARGS_LOG_ADDED; break;
+				case 'c': a->log |= COMPARE_ARGS_LOG_CHANGED; break;
+				case 'k': a->log |= COMPARE_ARGS_LOG_KEPT; break;
 				case 'A':
-					a->log = ARGS_LOG_DELETED|ARGS_LOG_ADDED|ARGS_LOG_CHANGED|ARGS_LOG_KEPT;
+					a->log =
+						COMPARE_ARGS_LOG_DELETED |
+						COMPARE_ARGS_LOG_ADDED |
+						COMPARE_ARGS_LOG_CHANGED |
+						COMPARE_ARGS_LOG_KEPT;
 					break;
 				case 'N': a->log = 0; break;
 				default:
@@ -145,10 +150,15 @@ int args_init (args_t *a, int argc, char *argv[]) {
 			if (out_reset) a->out = 0, out_reset = 0;
 			for (i = 0; optarg[i]; i++)
 				switch(optarg[i]) {
-				case 'd': a->out |= ARGS_OUT_DELETED; break;
-				case 'a': a->out |= ARGS_OUT_ADDED; break;
-				case 'c': a->out |= ARGS_OUT_CHANGED; break;
-				case 'A': a->out = ARGS_OUT_DELETED|ARGS_OUT_ADDED|ARGS_OUT_CHANGED; break;
+				case 'd': a->out |= COMPARE_ARGS_OUT_DELETED; break;
+				case 'a': a->out |= COMPARE_ARGS_OUT_ADDED; break;
+				case 'c': a->out |= COMPARE_ARGS_OUT_CHANGED; break;
+				case 'A':
+					a->out =
+						COMPARE_ARGS_OUT_DELETED |
+						COMPARE_ARGS_OUT_ADDED |
+						COMPARE_ARGS_OUT_CHANGED;
+					break;
 				case 'N': a->out = 0; break;
 				default:
 					goto_throw_verbose(err, ERROR_USAGE,
