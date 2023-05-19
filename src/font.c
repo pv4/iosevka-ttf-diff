@@ -1,6 +1,14 @@
 #include "font.h"
 #include "error.h"
 
+int font_feature_is_known (const char *t) {
+	return
+		t[0]=='c' && t[1]=='v' ||
+		t[0]=='V' && t[1]=='X' && t[2]!='L' ||
+		t[0]=='N' && t[1]=='W' && t[2]=='I' && t[3]=='D' ||
+		t[0]=='W' && t[1]=='W' && t[2]=='I' && t[3]=='D';
+}
+
 void font_init_e (font_t *f, hb_face_t *face, hb_font_t *font) {
 	hb_tag_t fts[FONT_FEATURES_MAX];
 	unsigned ftslen = sizeof fts / sizeof *fts;
@@ -29,11 +37,7 @@ void font_init_e (font_t *f, hb_face_t *face, hb_font_t *font) {
 	hb_ot_layout_table_get_feature_tags(f->face, HB_OT_TAG_GSUB, 0, &ftslen, fts);
 	for (i = 0; i != ftslen; i++) {
 		hb_tag_to_string(fts[i], t);
-		if (!(
-			t[0]=='c' && t[1]=='v' ||
-			t[0]=='V' && t[1]=='X' && t[2]!='L' ||
-			t[0]=='N' && t[1]=='W' && t[2]=='I' && t[3]=='D' ||
-			t[0]=='W' && t[1]=='W' && t[2]=='I' && t[3]=='D')) continue;
+		if (!font_feature_is_known(t)) continue;
 		
 		hb_set_add(f->features, fts[i]);
 	}

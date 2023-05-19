@@ -1,4 +1,5 @@
 #include "compare_main.h"
+#include "map_main.h"
 
 #include "error.h"
 #include "lib.h"
@@ -17,12 +18,13 @@ static void usage (FILE *f, char *argv[]) {
 "Commands:\n"
 " compare        Compare two release ttf files of Iosevka and log/output the\n"
 "                differencies (primary command)\n"
+" map            Map old codepoint variant codes to new ones\n"
 "\n"
 "iosevka-ttf-diff version %s\n",
 	bin, bin, VERSION);
 }
 
-enum { CMD_COMPARE };
+enum { CMD_COMPARE, CMD_MAP };
 static int cmd;
 
 static int args (int argc, char *argv[]) {
@@ -31,6 +33,7 @@ static int args (int argc, char *argv[]) {
 		return 1;
 	}
 	else if (!strcmp("compare", argv[1])) cmd = CMD_COMPARE;
+	else if (!strcmp("map", argv[1])) cmd = CMD_MAP;
 	else
 		goto_throw_verbose(err, ERROR_USAGE,
 			("%s: unrecognized command: '%s'\n", argv[0], argv[1]));
@@ -52,6 +55,7 @@ int main (int argc, char *argv[]) {
 	
 	switch (cmd) {
 	case CMD_COMPARE: status = compare_main(argc, argv); break;
+	case CMD_MAP: status = map_main(argc, argv); break;
 	}
 	
 catch_args:

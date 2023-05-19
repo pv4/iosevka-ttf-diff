@@ -45,6 +45,7 @@ SOURCES = \
 	gbox.c \
 	gdumper.c \
 	main.c \
+	map_main.c \
 	png.c \
 	vmap.c
 
