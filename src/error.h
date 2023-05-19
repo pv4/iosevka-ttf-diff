@@ -12,7 +12,7 @@ extern void error_printf(const char *fmt, ...);
 #define goto_throw(label, code) \
 	do { \
 		error_code = code; \
-		goto ERROR_##label; \
+		goto catch_##label; \
 	} while (0)
 
 #define goto_throw_verbose(label, code, fmt_args) \
